@@ -1,0 +1,107 @@
+/* ── Reset ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: sans-serif; font-size: 15px; background: #f5f5f5; color: #222; }
+
+/* ── Screens ── */
+.screen { display: none; }
+.screen.active { display: block; }
+.hidden { display: none !important; }
+
+/* ── Header ── */
+header {
+  background: #333; color: #fff;
+  padding: 10px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+header button { background: #555; color: #fff; border: none; padding: 6px 14px; cursor: pointer; border-radius: 4px; }
+
+/* ── Login card ── */
+.center-card {
+  max-width: 380px; margin: 80px auto;
+  background: #fff; border: 1px solid #ddd;
+  border-radius: 6px; padding: 30px;
+}
+.center-card h2 { text-align: center; margin-bottom: 20px; font-size: 18px; }
+
+/* ── Role tabs ── */
+.role-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.role-btn {
+  flex: 1; padding: 8px; border: 1px solid #ccc;
+  background: #f0f0f0; cursor: pointer; border-radius: 4px;
+}
+.role-btn.active { background: #333; color: #fff; border-color: #333; }
+
+/* ── Inputs ── */
+input, select, textarea {
+  width: 100%; padding: 8px 10px; margin-bottom: 10px;
+  border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+}
+button {
+  padding: 8px 16px; background: #333; color: #fff;
+  border: none; border-radius: 4px; cursor: pointer; font-size: 14px;
+}
+button:hover { background: #555; }
+
+/* ── Tab nav ── */
+.tab-nav { display: flex; gap: 0; border-bottom: 2px solid #ddd; background: #fff; padding: 0 16px; }
+.tab-btn {
+  background: none; color: #555; border: none; border-bottom: 2px solid transparent;
+  padding: 10px 18px; margin-bottom: -2px; cursor: pointer; font-size: 14px;
+}
+.tab-btn.active { color: #333; border-bottom-color: #333; font-weight: bold; }
+.tab-content { display: none; padding: 16px; }
+.tab-content.active { display: block; }
+
+/* ── Toolbar ── */
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.toolbar h3 { flex: 1; }
+
+/* ── Cards / list items ── */
+.card-item {
+  background: #fff; border: 1px solid #ddd;
+  border-radius: 6px; padding: 12px 16px; margin-bottom: 10px;
+}
+.card-item h4 { margin-bottom: 4px; }
+.card-item .meta { font-size: 13px; color: #666; margin-bottom: 8px; }
+.card-item .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Status badges ── */
+.badge {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 12px; font-size: 12px; font-weight: bold;
+}
+.badge-process  { background: #fff3cd; color: #856404; }
+.badge-done     { background: #d1e7dd; color: #0f5132; }
+.badge-paid     { background: #cfe2ff; color: #084298; }
+.badge-cancelled{ background: #f8d7da; color: #842029; }
+
+/* ── Menu ── */
+.menu-category { margin-bottom: 20px; }
+.menu-category h3 { padding: 8px 0; border-bottom: 1px solid #eee; margin-bottom: 8px; }
+.menu-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid #f0f0f0;
+}
+.menu-item-name { flex: 1; }
+.menu-item-price { color: #555; min-width: 80px; text-align: right; }
+.menu-item input[type=number] { width: 60px; margin: 0; }
+
+/* ── Order footer ── */
+.order-footer {
+  position: sticky; bottom: 0;
+  background: #fff; border-top: 2px solid #333;
+  padding: 12px 16px; display: flex; align-items: center; gap: 16px;
+}
+
+/* ── Table ── */
+table { width: 100%; border-collapse: collapse; background: #fff; font-size: 14px; }
+th { background: #333; color: #fff; padding: 8px 12px; text-align: left; }
+td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+tr:hover td { background: #fafafa; }
+
+/* ── Misc ── */
+.error { color: #c00; font-size: 13px; margin-top: 6px; }
+.msg { margin-top: 10px; padding: 8px 12px; border-radius: 4px; background: #d1e7dd; color: #0f5132; }
+.msg.error { background: #f8d7da; color: #842029; }
+.small-link { font-size: 13px; color: #555; margin-top: 10px; text-align: center; }
+.small-link a { color: #333; }

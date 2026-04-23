@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản Lý Nhà Hàng</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     SCREEN: LOGIN / REGISTER
+═══════════════════════════════════════════════ -->
+<div id="screen-login" class="screen active">
+  <div class="card center-card">
+    <h2>Hệ Thống Quản Lý Nhà Hàng</h2>
+
+    <div class="role-tabs">
+      <button class="role-btn active" data-role="customer">Khách hàng</button>
+      <button class="role-btn" data-role="staff">Nhân viên</button>
+      <button class="role-btn" data-role="manager">Quản lý</button>
+    </div>
+
+    <div id="form-login">
+      <input type="text" id="login-username" placeholder="Username" />
+      <input type="password" id="login-password" placeholder="Password" />
+      <button onclick="login()">Đăng nhập</button>
+      <p id="login-error" class="error hidden"></p>
+      <p id="register-link" class="small-link">
+        Chưa có tài khoản? <a href="#" onclick="showRegister()">Đăng ký</a>
+      </p>
+    </div>
+
+    <div id="form-register" class="hidden">
+      <input type="text" id="reg-fullname" placeholder="Họ và tên" />
+      <input type="text" id="reg-phone" placeholder="Số điện thoại" />
+      <input type="text" id="reg-username" placeholder="Username" />
+      <input type="password" id="reg-password" placeholder="Password" />
+      <button onclick="register()">Đăng ký</button>
+      <p class="small-link"><a href="#" onclick="showLogin()">← Quay lại đăng nhập</a></p>
+      <p id="register-error" class="error hidden"></p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SCREEN: CUSTOMER
+═══════════════════════════════════════════════ -->
+<div id="screen-customer" class="screen hidden">
+  <header>
+    <span id="customer-greeting"></span>
+    <button onclick="logout()">Đăng xuất</button>
+  </header>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('tab-menu', this)">Menu</button>
+    <button class="tab-btn" onclick="switchTab('tab-my-orders', this); loadMyOrders()">Đơn của tôi</button>
+  </nav>
+
+  <div id="tab-menu" class="tab-content active">
+    <div id="menu-list"></div>
+    <div class="order-footer hidden" id="order-footer">
+      <button onclick="placeOrder()">🛒 Đặt hàng</button>
+      <span id="order-total-preview"></span>
+    </div>
+    <p id="order-msg" class="msg hidden"></p>
+  </div>
+
+  <div id="tab-my-orders" class="tab-content hidden">
+    <div class="toolbar">
+      <h3>Đơn hàng của tôi</h3>
+      <button onclick="loadMyOrders()">↻ Tải lại</button>
+    </div>
+    <div id="my-orders-list"></div>
+
+    <div id="invoice-detail" class="hidden">
+      <h3>Chi tiết hóa đơn</h3>
+      <div id="invoice-content"></div>
+      <div id="payment-form" class="hidden" style="margin-top:12px">
+        <label>Phương thức thanh toán:</label>
+        <select id="payment-method">
+          <option value="tiền mặt">Tiền mặt</option>
+          <option value="thẻ">Thẻ</option>
+          <option value="chuyển khoản">Chuyển khoản</option>
+        </select>
+        <button onclick="submitPayment()" style="margin-top:8px">💳 Thanh toán</button>
+      </div>
+      <p id="payment-msg" class="msg hidden"></p>
+      <button onclick="closeInvoice()" style="margin-top:10px;background:#888">← Đóng</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SCREEN: STAFF
+═══════════════════════════════════════════════ -->
+<div id="screen-staff" class="screen hidden">
+  <header>
+    <span id="staff-greeting"></span>
+    <button onclick="logout()">Đăng xuất</button>
+  </header>
+
+  <div style="padding:16px">
+    <div class="toolbar">
+      <h3>Đơn được phân công</h3>
+      <button onclick="loadStaffOrders()">↻ Tải lại</button>
+    </div>
+    <div id="staff-orders-list"></div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SCREEN: MANAGER
+═══════════════════════════════════════════════ -->
+<div id="screen-manager" class="screen hidden">
+  <header>
+    <span id="manager-greeting"></span>
+    <button onclick="logout()">Đăng xuất</button>
+  </header>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('tab-all-orders', this); loadAllOrders()">Tất cả đơn</button>
+    <button class="tab-btn" onclick="switchTab('tab-revenue', this); loadRevenue()">Doanh thu</button>
+    <button class="tab-btn" onclick="switchTab('tab-staff-perf', this); loadStaffPerf()">Nhân viên</button>
+  </nav>
+
+  <div id="tab-all-orders" class="tab-content active">
+    <div class="toolbar" style="padding:16px 16px 0">
+      <select id="filter-status" onchange="loadAllOrders()">
+        <option value="">Tất cả trạng thái</option>
+        <option value="đang xử lý">Đang xử lý</option>
+        <option value="hoàn tất">Hoàn tất</option>
+        <option value="đã thanh toán">Đã thanh toán</option>
+        <option value="đã hủy">Đã hủy</option>
+      </select>
+      <button onclick="loadAllOrders()">↻ Tải lại</button>
+    </div>
+    <div style="padding:16px" id="all-orders-list"></div>
+  </div>
+
+  <div id="tab-revenue" class="tab-content hidden">
+    <div style="padding:16px" id="revenue-content"></div>
+  </div>
+
+  <div id="tab-staff-perf" class="tab-content hidden">
+    <div style="padding:16px" id="staff-perf-content"></div>
+  </div>
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>
