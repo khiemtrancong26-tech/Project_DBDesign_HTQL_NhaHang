@@ -93,14 +93,5 @@ INSERT INTO Customer (CustomerID, FullName, PhoneNumber, username, password) VAL
 -- Xóa data (giữ nguyên bảng)
 TRUNCATE TABLE Payment, OrderDetail, Order_, MenuItem, Category, Table_, Staff, Customer RESTART IDENTITY CASCADE;
 
-
-SELECT * FROM Payment;
-SELECT * FROM OrderDetail;
-SELECT * FROM Order_;
-SELECT * FROM MenuItem;
-SELECT * FROM Category;
-SELECT * FROM Table_;
-SELECT * FROM Staff;
-SELECT * FROM Customer;
-
 DELETE FROM Customer WHERE CustomerID = 'C000006';
+
