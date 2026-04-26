@@ -1,20 +1,3 @@
--- =========================================================================
--- SCHEMA v2.1 — Sửa 3 vấn đề phát hiện khi kiểm tra toàn bộ DESIGN_DECISIONS.md
---
--- [FIX 1] Customer.PhoneNumber + Staff.PhoneNumber: VARCHAR(20) → TEXT
---         Lý do: AES-256-GCM ciphertext base64 ~58 chars > 20 → INSERT lỗi ngay
---
--- [FIX 2] Payment.OrderID: UNIQUE → UNIQUE(OrderID, PaymentType)
---         Lý do: 1 đơn có thể có 2 Payment — 'cọc' + 'hoàn tất' (§4.5, §2.3)
---         UNIQUE(OrderID) cũ sẽ block bản ghi Payment thứ 2
---
--- [FIX 3] Thêm partial unique index: 1 khách chỉ 1 order active (§2.2)
---         Active = NOT IN ('đã thanh toán', 'đã hủy')
---         PostgreSQL hỗ trợ partial index — DB tự enforce, không phụ thuộc app layer
---
--- Các thay đổi từ v1 → v2 giữ nguyên (xem comment trong từng bảng)
--- =========================================================================
-
 
 -- =========================================================================
 -- ĐỢT 1: Bảng không phụ thuộc bảng nào khác
@@ -167,8 +150,6 @@ CREATE TABLE AuditLog (
 CREATE INDEX idx_auditlog_actor   ON AuditLog (ActorID, CreatedAt DESC);
 CREATE INDEX idx_auditlog_target  ON AuditLog (TargetTable, TargetID);
 CREATE INDEX idx_auditlog_created ON AuditLog (CreatedAt DESC);
-
-
 
 
 

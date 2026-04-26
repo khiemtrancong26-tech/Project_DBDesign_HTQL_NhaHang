@@ -1,8 +1,6 @@
 -- =========================================================================
 -- DEMO DATA — Dữ liệu nền khởi động
--- Bao gồm: Category, MenuItem, Table_, Staff, Customer
--- Không bao gồm: Order_, OrderDetail, Payment
--- → Nhóm tự thao tác qua giao diện từ đầu
+-- Bao gồm: Category, MenuItem, Table_, Staff
 -- =========================================================================
 
 -- =========================================================================
