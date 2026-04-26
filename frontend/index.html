@@ -1,155 +1,408 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Quản Lý Nhà Hàng</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/styles/style.css" />
+  <link rel="stylesheet" href="/static/styles/page-layout.css" />
 </head>
+
 <body>
 
-<!-- ═══════════════════════════════════════════════
-     SCREEN: LOGIN / REGISTER
-═══════════════════════════════════════════════ -->
-<div id="screen-login" class="screen active">
-  <div class="card center-card">
-    <h2>Hệ Thống Quản Lý Nhà Hàng</h2>
+  <!-- ═══════════ SCREEN: LOGIN / REGISTER ═══════════ -->
+  <div id="screen-login" class="screen active">
+    <div class="card center-card">
+      <h2>Hệ Thống Quản Lý Nhà Hàng</h2>
 
-    <div class="role-tabs">
-      <button class="role-btn active" data-role="customer">Khách hàng</button>
-      <button class="role-btn" data-role="staff">Nhân viên</button>
-      <button class="role-btn" data-role="manager">Quản lý</button>
-    </div>
+      <div class="role-tabs">
+        <button class="role-btn active" data-role="customer">Khách hàng</button>
+        <button class="role-btn" data-role="staff">Nhân viên</button>
+        <button class="role-btn" data-role="manager">Quản lý</button>
+      </div>
 
-    <div id="form-login">
-      <input type="text" id="login-username" placeholder="Username" />
-      <input type="password" id="login-password" placeholder="Password" />
-      <button onclick="login()">Đăng nhập</button>
-      <p id="login-error" class="error hidden"></p>
-      <p id="register-link" class="small-link">
-        Chưa có tài khoản? <a href="#" onclick="showRegister()">Đăng ký</a>
-      </p>
-    </div>
+      <div id="form-login">
+        <input type="text" id="login-username" placeholder="Username" />
+        <input type="password" id="login-password" placeholder="Password" />
+        <button onclick="login()">Đăng nhập</button>
+        <p id="login-error" class="error hidden"></p>
+        <p id="register-link" class="small-link">
+          Chưa có tài khoản? <a href="#" onclick="showRegister()">Đăng ký</a>
+        </p>
+      </div>
 
-    <div id="form-register" class="hidden">
-      <input type="text" id="reg-fullname" placeholder="Họ và tên" />
-      <input type="text" id="reg-phone" placeholder="Số điện thoại" />
-      <input type="text" id="reg-username" placeholder="Username" />
-      <input type="password" id="reg-password" placeholder="Password" />
-      <button onclick="register()">Đăng ký</button>
-      <p class="small-link"><a href="#" onclick="showLogin()">← Quay lại đăng nhập</a></p>
-      <p id="register-error" class="error hidden"></p>
+      <div id="form-register" class="hidden">
+        <input type="text" id="reg-fullname" placeholder="Họ và tên" />
+        <input type="text" id="reg-phone" placeholder="Số điện thoại" />
+        <input type="text" id="reg-username" placeholder="Username" />
+        <input type="password" id="reg-password" placeholder="Password" />
+        <button onclick="register()">Đăng ký</button>
+        <p class="small-link"><a href="#" onclick="showLogin()">← Quay lại đăng nhập</a></p>
+        <p id="register-error" class="error hidden"></p>
+      </div>
     </div>
   </div>
-</div>
 
 
-<!-- ═══════════════════════════════════════════════
-     SCREEN: CUSTOMER
-═══════════════════════════════════════════════ -->
-<div id="screen-customer" class="screen hidden">
-  <header>
-    <span id="customer-greeting"></span>
-    <button onclick="logout()">Đăng xuất</button>
-  </header>
+  <!-- ═══════════ SCREEN: CUSTOMER ═══════════ -->
+  <div id="screen-customer" class="screen hidden">
+    <header>
+      <span id="customer-greeting"></span>
+      <button onclick="logout()">Đăng xuất</button>
+    </header>
 
-  <nav class="tab-nav">
-    <button class="tab-btn active" onclick="switchTab('tab-menu', this)">Menu</button>
-    <button class="tab-btn" onclick="switchTab('tab-my-orders', this); loadMyOrders()">Đơn của tôi</button>
-  </nav>
+    <nav class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('tab-booking', this); initBookingTab()">
+        🗓️ Đặt bàn
+      </button>
+      <button class="tab-btn" onclick="switchTab('tab-history', this); loadHistory()">
+        📋 Lịch sử
+      </button>
+    </nav>
 
-  <div id="tab-menu" class="tab-content active">
-    <div id="menu-list"></div>
-    <div class="order-footer hidden" id="order-footer">
-      <button onclick="placeOrder()">🛒 Đặt hàng</button>
-      <span id="order-total-preview"></span>
+    <!-- ── TAB: ĐẶT BÀN ── -->
+    <div id="tab-booking" class="tab-content active">
+      <div class="booking-section">
+
+        <!-- Phase 1: Form đặt bàn -->
+        <div id="phase-book">
+          <h3>Thời gian đặt bàn</h3>
+          <input type="datetime-local" id="reservation-time" />
+
+          <h3>Gọi món trước <span style="font-weight:normal;color:#888">(tuỳ chọn)</span></h3>
+          <p class="booking-hint">
+            Nếu gọi món trước, bạn cần đặt cọc <strong>30%</strong> tổng đơn để xác nhận bàn.<br>
+            Không gọi trước cũng được — gọi trực tiếp tại bàn khi đến.
+          </p>
+
+          <div id="booking-menu-list">
+            <p style="color:#888">Đang tải menu...</p>
+          </div>
+
+          <div class="booking-summary hidden" id="booking-summary">
+            <span>Tổng dự tính:</span>
+            <strong id="booking-total-text">0đ</strong>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <button onclick="handleBookTable()" id="btn-book" style="width:100%;padding:12px;font-size:15px">
+              🗓️ Đặt bàn
+            </button>
+            <p id="booking-msg" class="msg hidden" style="margin-top:10px"></p>
+          </div>
+        </div>
+
+        <!-- Phase 2: Xác nhận đặt cọc (hiện sau khi server trả deposit_required) -->
+        <div id="phase-deposit" class="hidden">
+          <div class="deposit-notice">
+            <p>✅ <strong>Bàn đã được giữ chỗ!</strong></p>
+            <p>
+              Vì bạn đã chọn món trước, hệ thống yêu cầu đặt cọc
+              <strong id="deposit-amount-text" style="font-size:16px;color:#0f5132"></strong>
+              (30% tổng đơn) để xác nhận bàn.
+            </p>
+            <p style="font-size:13px;color:#555">
+              Mã đơn: <code id="deposit-order-id"></code> &nbsp;|&nbsp;
+              Bàn: <span id="deposit-table-id"></span>
+            </p>
+
+            <div style="margin-top:12px">
+              <label style="font-size:13px;font-weight:bold">Phương thức thanh toán cọc:</label>
+              <select id="deposit-method" style="margin-bottom:10px">
+                <option value="chuyển khoản">Chuyển khoản</option>
+              </select>
+              <button onclick="handlePayDeposit()" style="width:100%;padding:11px;font-size:15px">
+                💳 Thanh toán cọc 30%
+              </button>
+            </div>
+            <p id="deposit-msg" class="msg hidden" style="margin-top:10px"></p>
+          </div>
+
+          <div style="margin-top:10px;text-align:center">
+            <a href="#" onclick="cancelDepositPhase()" style="font-size:13px;color:#888">
+              ← Quay lại (bàn vẫn được giữ, cần thanh toán cọc sau trong Lịch sử)
+            </a>
+          </div>
+        </div>
+
+      </div>
     </div>
-    <p id="order-msg" class="msg hidden"></p>
+
+    <!-- ── TAB: LỊCH SỬ ── -->
+    <div id="tab-history" class="tab-content hidden">
+      <div class="toolbar" style="padding:16px 16px 0">
+        <h3>Lịch sử đặt bàn</h3>
+        <button onclick="loadHistory()">↻ Tải lại</button>
+      </div>
+      <div style="padding:16px" id="history-list">
+        <p style="color:#888">Đang tải...</p>
+      </div>
+    </div>
+
+  </div><!-- /screen-customer -->
+
+
+  <!-- ═══════════ MODAL: Thanh toán cọc từ Lịch sử ═══════════ -->
+  <div id="modal-deposit" class="modal hidden">
+    <div class="modal-box">
+      <h3>💳 Thanh toán cọc 30%</h3>
+      <p>Mã đơn: <strong id="md-order-id"></strong></p>
+      <p>Số tiền cọc: <strong id="md-deposit-amount" style="color:#0f5132;font-size:16px"></strong></p>
+      <div class="warning-box">
+        Sau khi thanh toán cọc, bàn của bạn sẽ được xác nhận chính thức.
+      </div>
+      <label>Phương thức:</label>
+      <select id="md-method">
+        <option value="chuyển khoản">Chuyển khoản</option>
+      </select>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button onclick="confirmDepositFromHistory()">✅ Xác nhận thanh toán</button>
+        <button onclick="closeModal('modal-deposit')" style="background:#888">Hủy</button>
+      </div>
+      <p id="md-msg" class="msg hidden" style="margin-top:8px"></p>
+    </div>
   </div>
 
-  <div id="tab-my-orders" class="tab-content hidden">
-    <div class="toolbar">
-      <h3>Đơn hàng của tôi</h3>
-      <button onclick="loadMyOrders()">↻ Tải lại</button>
-    </div>
-    <div id="my-orders-list"></div>
 
-    <div id="invoice-detail" class="hidden">
-      <h3>Chi tiết hóa đơn</h3>
-      <div id="invoice-content"></div>
-      <div id="payment-form" class="hidden" style="margin-top:12px">
+  <!-- ═══════════ MODAL: Cảnh báo thanh toán hoàn tất ═══════════ -->
+  <div id="modal-pay-warning" class="modal hidden">
+    <div class="modal-box">
+      <h3>⚠️ Xác nhận thanh toán hoàn tất</h3>
+
+      <div class="warning-box">
+        <strong>Đây là bước cuối cùng.</strong><br>
+        Sau khi thanh toán, bạn <strong>KHÔNG THỂ gọi thêm món</strong> nữa
+        và bàn sẽ được giải phóng.<br><br>
+        Chỉ xác nhận khi bạn đã ăn xong và sẵn sàng rời nhà hàng.
+      </div>
+
+      <div class="bill-section" id="pw-bill"></div>
+
+      <div style="margin-top:12px">
         <label>Phương thức thanh toán:</label>
-        <select id="payment-method">
+        <select id="final-pay-method">
           <option value="tiền mặt">Tiền mặt</option>
           <option value="thẻ">Thẻ</option>
           <option value="chuyển khoản">Chuyển khoản</option>
         </select>
-        <button onclick="submitPayment()" style="margin-top:8px">💳 Thanh toán</button>
       </div>
-      <p id="payment-msg" class="msg hidden"></p>
-      <button onclick="closeInvoice()" style="margin-top:10px;background:#888">← Đóng</button>
+
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button onclick="confirmFinalPayment()" class="btn-pay">✅ Xác nhận thanh toán</button>
+        <button onclick="closeModal('modal-pay-warning')" style="background:#888">↩ Quay lại gọi thêm</button>
+      </div>
+      <p id="final-pay-msg" class="msg hidden" style="margin-top:8px"></p>
     </div>
   </div>
-</div>
 
 
-<!-- ═══════════════════════════════════════════════
-     SCREEN: STAFF
-═══════════════════════════════════════════════ -->
-<div id="screen-staff" class="screen hidden">
-  <header>
-    <span id="staff-greeting"></span>
-    <button onclick="logout()">Đăng xuất</button>
-  </header>
+  <!-- ═══════════ MODAL: Gọi món tại bàn ═══════════ -->
+  <div id="modal-order-at-table" class="modal hidden">
+    <div class="modal-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3>🍽️ Gọi món tại bàn</h3>
+        <button onclick="closeModal('modal-order-at-table')" style="background:#888;padding:4px 10px">✕</button>
+      </div>
+      <p style="font-size:13px;color:#555;margin-bottom:12px">
+        Chọn món bạn muốn thêm vào đơn. Không cần đặt cọc.
+      </p>
 
-  <div style="padding:16px">
-    <div class="toolbar">
-      <h3>Đơn được phân công</h3>
-      <button onclick="loadStaffOrders()">↻ Tải lại</button>
+      <div id="at-table-menu-list"></div>
+
+      <div class="at-table-summary-bar hidden" id="at-table-summary">
+        <span>Thêm vào đơn:</span>
+        <strong id="at-table-total-text">0đ</strong>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button onclick="submitOrderAtTable()" style="flex:1">➕ Thêm vào đơn</button>
+        <button onclick="closeModal('modal-order-at-table')" style="background:#888">Hủy</button>
+      </div>
+      <p id="at-table-msg" class="msg hidden" style="margin-top:8px"></p>
     </div>
-    <div id="staff-orders-list"></div>
   </div>
-</div>
 
 
-<!-- ═══════════════════════════════════════════════
-     SCREEN: MANAGER
-═══════════════════════════════════════════════ -->
-<div id="screen-manager" class="screen hidden">
-  <header>
-    <span id="manager-greeting"></span>
-    <button onclick="logout()">Đăng xuất</button>
-  </header>
-
-  <nav class="tab-nav">
-    <button class="tab-btn active" onclick="switchTab('tab-all-orders', this); loadAllOrders()">Tất cả đơn</button>
-    <button class="tab-btn" onclick="switchTab('tab-revenue', this); loadRevenue()">Doanh thu</button>
-    <button class="tab-btn" onclick="switchTab('tab-staff-perf', this); loadStaffPerf()">Nhân viên</button>
-  </nav>
-
-  <div id="tab-all-orders" class="tab-content active">
-    <div class="toolbar" style="padding:16px 16px 0">
-      <select id="filter-status" onchange="loadAllOrders()">
-        <option value="">Tất cả trạng thái</option>
-        <option value="đang xử lý">Đang xử lý</option>
-        <option value="hoàn tất">Hoàn tất</option>
-        <option value="đã thanh toán">Đã thanh toán</option>
-        <option value="đã hủy">Đã hủy</option>
-      </select>
-      <button onclick="loadAllOrders()">↻ Tải lại</button>
+  <!-- ═══════════ MODAL: Liên hệ Manager (Đổi giờ / Hủy bàn) ═══════════ -->
+  <div id="modal-manager-contact" class="modal hidden">
+    <div class="modal-box" style="text-align:center">
+      <h3>📞 Đổi giờ / Hủy bàn</h3>
+      <p style="font-size:13px;color:#555;margin-bottom:16px">
+        Để đổi giờ hoặc hủy bàn, vui lòng liên hệ trực tiếp với quản lý nhà hàng:
+      </p>
+      <div id="mc-info">
+        <p style="color:#888">Đang tải thông tin...</p>
+      </div>
+      <button onclick="closeModal('modal-manager-contact')" style="margin-top:16px;background:#888;width:100%">
+        Đóng
+      </button>
     </div>
-    <div style="padding:16px" id="all-orders-list"></div>
   </div>
 
-  <div id="tab-revenue" class="tab-content hidden">
-    <div style="padding:16px" id="revenue-content"></div>
+
+  <!-- ═══════════ MODAL: Staff xem chi tiết đơn ═══════════ -->
+  <div id="modal-staff-order-detail" class="modal hidden">
+    <div class="modal-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h3>📋 Chi tiết đơn hàng</h3>
+        <button onclick="closeModal('modal-staff-order-detail')" style="background:#888;padding:4px 10px">✕</button>
+      </div>
+      <div id="staff-order-detail-body">
+        <p style="color:#888">Đang tải...</p>
+      </div>
+    </div>
   </div>
 
-  <div id="tab-staff-perf" class="tab-content hidden">
-    <div style="padding:16px" id="staff-perf-content"></div>
-  </div>
-</div>
 
-<script src="/static/script.js"></script>
+  <!-- ═══════════ MODAL: Staff thêm món hộ khách ═══════════ -->
+  <div id="modal-staff-add-items" class="modal hidden">
+    <div class="modal-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h3>➕ Thêm món hộ khách</h3>
+        <button onclick="closeModal('modal-staff-add-items')" style="background:#888;padding:4px 10px">✕</button>
+      </div>
+      <p style="font-size:13px;color:#555;margin-bottom:8px">
+        Mã đơn: <strong id="staff-add-order-id"></strong>
+      </p>
+
+      <div id="staff-add-menu-list">
+        <p style="color:#888">Đang tải menu...</p>
+      </div>
+
+      <div class="at-table-summary-bar hidden" id="staff-add-summary">
+        <span>Tổng món thêm:</span>
+        <strong id="staff-add-total-text">0đ</strong>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button onclick="submitStaffAddItems()" style="flex:1">✅ Xác nhận thêm món</button>
+        <button onclick="closeModal('modal-staff-add-items')" style="background:#888">Hủy</button>
+      </div>
+      <p id="staff-add-msg" class="msg hidden" style="margin-top:8px"></p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════ SCREEN: STAFF ═══════════ -->
+  <div id="screen-staff" class="screen hidden">
+    <header>
+      <span id="staff-greeting"></span>
+      <button onclick="logout()">Đăng xuất</button>
+    </header>
+    <div style="padding:16px">
+      <div class="toolbar">
+        <h3>Bàn/đơn được phân công</h3>
+        <button onclick="loadStaffOrders()">↻ Tải lại</button>
+      </div>
+      <p style="font-size:13px;color:#666;margin-bottom:10px">
+        Realtime mỗi 5 giây: nhận thông báo khi có đơn mới, gọi thêm món, hoặc đổi trạng thái.
+      </p>
+      <div id="staff-live-alerts" class="staff-live-alerts"></div>
+      <div id="staff-orders-list"></div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════ SCREEN: MANAGER ═══════════ -->
+  <div id="screen-manager" class="screen hidden">
+    <header>
+      <span id="manager-greeting"></span>
+      <button onclick="logout()">Đăng xuất</button>
+    </header>
+
+    <nav class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('tab-all-orders', this); loadAllOrders()">Tất cả đơn</button>
+      <button class="tab-btn" onclick="switchTab('tab-revenue', this); loadRevenue()">Doanh thu</button>
+      <button class="tab-btn" onclick="switchTab('tab-staff-perf', this); loadStaffPerf()">Nhân viên</button>
+      <button id="manager-tab-failed" class="tab-btn" onclick="switchTab('tab-failed', this); loadFailedBookings()">Đặt bàn thất bại</button>
+      <button class="tab-btn" onclick="switchTab('tab-sql', this)">🖥️ SQL Terminal</button>
+    </nav>
+    <div id="manager-live-alerts" class="manager-live-alerts"></div>
+
+    <div id="tab-all-orders" class="tab-content active">
+      <div class="toolbar" style="padding:16px 16px 0">
+        <select id="filter-status" onchange="loadAllOrders()">
+          <option value="">Tất cả trạng thái</option>
+          <option value="đang xử lý">Đang xử lý</option>
+          <option value="hoàn tất">Hoàn tất</option>
+          <option value="đã thanh toán">Đã thanh toán</option>
+          <option value="đã hủy">Đã hủy</option>
+        </select>
+        <button onclick="loadAllOrders()">↻ Tải lại</button>
+      </div>
+      <div style="padding:16px" id="all-orders-list"></div>
+    </div>
+
+    <div id="tab-revenue" class="tab-content hidden">
+      <div style="padding:16px" id="revenue-content"></div>
+    </div>
+
+    <div id="tab-staff-perf" class="tab-content hidden">
+      <div style="padding:16px" id="staff-perf-content"></div>
+    </div>
+
+    <div id="tab-failed" class="tab-content hidden">
+      <div style="padding:16px" id="failed-bookings-content"></div>
+    </div>
+
+    <!-- ── TAB: SQL TERMINAL ── -->
+    <div id="tab-sql" class="tab-content hidden" style="padding:0">
+      <div class="sql-terminal">
+
+        <div class="sql-topbar">
+          <span>🖥️&nbsp; SQL Terminal &nbsp;—&nbsp; Full Access</span>
+          <span class="sql-topbar-hint">SELECT · INSERT · UPDATE · DELETE · DDL · bất kỳ</span>
+        </div>
+
+        <!-- Quick-access templates -->
+        <div class="sql-templates">
+          <span class="sql-tpl-label">Quick:</span>
+          <button class="sql-tpl-btn"
+            onclick="sqlTemplate('SELECT * FROM Order_ ORDER BY ReservationTime DESC LIMIT 20;')">Order_</button>
+          <button class="sql-tpl-btn" onclick="sqlTemplate('SELECT * FROM Customer;')">Customer</button>
+          <button class="sql-tpl-btn" onclick="sqlTemplate('SELECT * FROM Staff;')">Staff</button>
+          <button class="sql-tpl-btn" onclick="sqlTemplate('SELECT * FROM Table_;')">Table_</button>
+          <button class="sql-tpl-btn" onclick="sqlTemplate('SELECT * FROM MenuItem;')">MenuItem</button>
+          <button class="sql-tpl-btn"
+            onclick="sqlTemplate('SELECT * FROM Payment ORDER BY PaymentDate DESC;')">Payment</button>
+          <button class="sql-tpl-btn"
+            onclick="sqlTemplate('SELECT * FROM OrderDetail WHERE OrderID = \\'ORD001\\';')">OrderDetail</button>
+          <button class="sql-tpl-btn"
+            onclick="sqlTemplate('SELECT * FROM FailedBooking ORDER BY CreatedAt DESC;')">FailedBooking</button>
+        </div>
+
+        <!-- Input -->
+        <div style="position:relative">
+          <textarea id="sql-input" class="sql-input" spellcheck="false"
+            placeholder="-- Nhập câu SQL bất kỳ. Ctrl+Enter để chạy.&#10;&#10;SELECT o.OrderID, o.OrderStatus, c.FullName, o.TotalAmount&#10;FROM Order_ o JOIN Customer c ON c.CustomerID = o.CustomerID&#10;ORDER BY o.ReservationTime DESC LIMIT 10;"
+            onkeydown="sqlKeyHandler(event)"></textarea>
+          <div class="sql-shortcut-hint">Ctrl+Enter để chạy</div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="sql-toolbar">
+          <button onclick="runManagerSQL()" class="sql-run-btn">▶&nbsp; Run</button>
+          <button onclick="clearSqlTerminal()" class="sql-clear-btn">✕ Clear</button>
+          <span id="sql-status" class="sql-status-text"></span>
+        </div>
+
+        <!-- Output -->
+        <div id="sql-output" class="sql-output">
+          <span class="sql-placeholder">-- Kết quả sẽ hiển thị ở đây</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /screen-manager -->
+
+  <script src="/static/js/core.js"></script>
+  <script src="/static/js/customer-booking.js"></script>
+  <script src="/static/js/customer-history.js"></script>
+  <script src="/static/js/staff-dashboard.js"></script>
+  <script src="/static/js/staff-actions.js"></script>
+  <script src="/static/js/manager.js"></script>
 </body>
+
 </html>

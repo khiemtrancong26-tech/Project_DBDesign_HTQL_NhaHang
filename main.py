@@ -1,6 +1,6 @@
 # main.py
 """
-Entry point — khởi động FastAPI app, mount toàn bộ router.
+Entry point — khởi động FastAPI app.
 
 Chạy server:
     uvicorn main:app --reload
@@ -27,16 +27,34 @@ app.add_middleware(
 )
 
 # ── API ROUTERS ───────────────────────────────────────────────────────────
+# prefix="/api" — tất cả endpoint đều bắt đầu bằng /api/...
+#
+# auth.py    : POST /api/auth/login, POST /api/auth/register
+# customer.py: GET  /api/menu
+#              POST /api/reservations
+#              POST /api/orders/{id}/items
+#              GET  /api/orders/customer/{id}
+#              GET  /api/orders/{id}/invoice
+#              POST /api/payments
+# staff.py   : GET  /api/staff/{id}/orders
+#              PATCH /api/orders/{id}/status
+# manager.py : GET  /api/manager/orders
+#              GET  /api/manager/revenue
+#              GET  /api/manager/staff-performance
+#              GET  /api/manager/failed-bookings
+#              PATCH /api/manager/failed-bookings/{id}
+#              POST /api/manager/reservations
+#              PATCH /api/manager/orders/{id}/reschedule
+#              GET  /api/manager/audit-log
+
 app.include_router(auth.router,     prefix="/api")
 app.include_router(customer.router, prefix="/api")
 app.include_router(staff.router,    prefix="/api")
 app.include_router(manager.router,  prefix="/api")
 
 # ── SERVE FRONTEND ────────────────────────────────────────────────────────
-# Mount CSS/JS as static files
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
-# Trang chủ → trả về index.html
 @app.get("/")
 def root():
     return FileResponse("frontend/index.html")

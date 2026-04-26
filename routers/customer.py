@@ -1,171 +1,244 @@
 # routers/customer.py
+"""
+Customer router.
+
+Thay đổi so với v1:
+    - /api/orders   : gọi create_reservation() thay create_order() — [FIX 2]
+                      request thêm trường reservation_time
+    - /api/payments : gọi create_payment() với payment_type — [FIX 3]
+    - GET orders    : OrderDate → ReservationTime — [FIX 1]
+    - GET invoice   : OrderDate → ReservationTime — [FIX 1]
+"""
+
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from db import get_conn
-from services.order_service import create_order
+from services.order_service   import (
+    create_reservation, add_items_to_order,
+    request_payment as svc_request_payment,
+    cancel_payment_request as svc_cancel_payment_request,
+)
 from services.payment_service import create_payment
 
 router = APIRouter()
 
 
 # ── REQUEST MODELS ────────────────────────────────────────────────────────
-# BaseModel = pydantic tự động parse JSON từ browser → object Python
-# Nếu thiếu field hoặc sai kiểu → FastAPI tự trả lỗi 422, không cần tự kiểm
 
 class OrderItem(BaseModel):
-    menu_item_id: str   # mã món ăn, ví dụ "M006"
-    quantity: int       # số lượng, ví dụ 2
+    menu_item_id: str
+    quantity:     int
 
 
-class CreateOrderRequest(BaseModel):
-    customer_id: str         # mã khách hàng, ví dụ "C000001"
-    items: list[OrderItem]   # danh sách món đặt, ví dụ [{M006, 2}, {M020, 3}]
+class CreateReservationRequest(BaseModel):
+    customer_id:      str
+    reservation_time: str          # ISO string: "2025-08-01T18:30:00"
+    items:            list[OrderItem] = []   # có thể rỗng — §2.1
+
+
+class AddItemsRequest(BaseModel):
+    customer_id: str       # Để validate ownership — §2.3
+    items:       list[OrderItem]
 
 
 class PaymentRequest(BaseModel):
-    order_id: str    # mã đơn cần thanh toán
-    amount: float    # số tiền
-    method: str      # hình thức: 'tiền mặt' | 'thẻ' | 'chuyển khoản'
+    order_id:     str
+    amount:       float
+    method:       str              # 'tiền mặt' | 'thẻ' | 'chuyển khoản'
+    payment_type: str              # [FIX 3] 'cọc' | 'hoàn tất'
+
+
+class PaymentRequestAction(BaseModel):
+    customer_id: str
 
 
 # ═══════════════════════════════════════════════════════════════
-# ENDPOINT 1: Lấy menu
-# URL: GET /api/menu
+# GET /api/menu
 # ═══════════════════════════════════════════════════════════════
 
 @router.get("/menu")
 def get_menu():
     conn = get_conn()
     cur  = conn.cursor()
-
     try:
         cur.execute(
             """
-            -- Dịch nghĩa:
-            -- "Lấy tất cả món ăn đang available, kèm tên danh mục của nó,
-            --  sắp xếp theo tên danh mục rồi tên món"
-
-            SELECT c.CategoryID,      -- mã danh mục (dùng làm key gom nhóm)
-                   c.Category_name,   -- tên danh mục: Khai vị, Món chính...
-                   m.MenuItemID,      -- mã món
-                   m.Food_name,       -- tên món: Bò lúc lắc, Bia Heineken...
-                   m.Price            -- giá
+            SELECT c.CategoryID, c.Category_name,
+                   m.MenuItemID, m.Food_name, m.Price
             FROM Category c
-            JOIN MenuItem m ON m.CategoryID = c.CategoryID  -- nối để lấy món thuộc danh mục nào
-            WHERE m.Availability_status = 'available'        -- chỉ lấy món đang bán, bỏ hết hàng
-            ORDER BY c.Category_name, m.Food_name            -- sắp xếp A-Z theo danh mục rồi tên món
+            JOIN MenuItem m ON m.CategoryID = c.CategoryID
+            WHERE m.Availability_status = 'available'
+            ORDER BY c.Category_name, m.Food_name
             """
         )
-        rows = cur.fetchall()  # lấy tất cả dòng — mỗi dòng là 1 món kèm danh mục
-
-        # Vấn đề: SQL trả về phẳng — mỗi dòng lặp lại tên danh mục
-        # Ví dụ kết quả thô:
-        # CAT001 | Khai vị | M001 | Gỏi cuốn | 45000
-        # CAT001 | Khai vị | M002 | Chả giò  | 50000
-        # CAT002 | Món chính | M006 | Bò lúc lắc | 185000
-
-        # Giải pháp: dùng dict Python để gom nhóm theo CategoryID
         categories = {}
-        for cat_id, cat_name, item_id, food_name, price in rows:
+        for cat_id, cat_name, item_id, food_name, price in cur.fetchall():
             if cat_id not in categories:
-                # lần đầu gặp category này → tạo mới
                 categories[cat_id] = {
                     "category_id":   cat_id,
                     "category_name": cat_name,
-                    "items": []      # danh sách món sẽ được append dần
+                    "items":         [],
                 }
-            # thêm món vào đúng danh mục
             categories[cat_id]["items"].append({
                 "menu_item_id": item_id,
                 "food_name":    food_name,
                 "price":        float(price),
             })
-
-        # Kết quả trả về browser:
-        # [
-        #   { category_id: CAT001, category_name: Khai vị, items: [{M001,...}, {M002,...}] },
-        #   { category_id: CAT002, category_name: Món chính, items: [{M006,...}, ...] },
-        # ]
         return list(categories.values())
-
     finally:
         cur.close()
         conn.close()
 
 
 # ═══════════════════════════════════════════════════════════════
-# ENDPOINT 2: Đặt hàng
-# URL: POST /api/orders
+# POST /api/reservations   [FIX 2] — thay thế POST /api/orders cũ
 # ═══════════════════════════════════════════════════════════════
 
-@router.post("/orders")
-def place_order(req: CreateOrderRequest):
-    if not req.items:
-        # kiểm tra đơn có ít nhất 1 món — không cần query DB
-        raise HTTPException(status_code=400, detail="Đơn hàng phải có ít nhất 1 món")
+@router.post("/reservations")
+def make_reservation(req: CreateReservationRequest):
+    """
+    Tạo đặt bàn — §2.1, §2.2, §2.3, §3.1, §3.2, §3.3.
+
+    reservation_time: ISO string từ frontend datetime-local input.
+    items: có thể rỗng (gọi món sau khi đến cũng được — §2.1).
+
+    Trả về dict với key "success":
+        True  → đặt thành công (+ deposit_required nếu pre-order)
+        False → hết bàn/nhân viên, đã ghi FailedBooking
+    """
+    try:
+        reservation_time = datetime.fromisoformat(req.reservation_time)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="reservation_time không hợp lệ. Dùng định dạng ISO: 2025-08-01T18:30:00",
+        )
+
+    items = [{"menu_item_id": i.menu_item_id, "quantity": i.quantity} for i in req.items]
 
     conn = get_conn()
     try:
-        # chuyển list[OrderItem] (pydantic object) → list[dict] (Python thuần)
-        # để truyền vào create_order trong order_service.py
-        items = [{"menu_item_id": i.menu_item_id, "quantity": i.quantity} for i in req.items]
-
-        # logic tạo đơn nằm trong order_service.py — không viết ở đây
-        # lý do tách ra: router chỉ lo HTTP, service mới lo business logic
-        return create_order(conn, req.customer_id, items)
-
+        return create_reservation(conn, req.customer_id, reservation_time, items)
     except ValueError as e:
-        # ValueError do order_service ném ra — lỗi do data sai (hết bàn, món không có...)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # lỗi bất kỳ khác → lỗi server
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        conn.close()  # không có cur.close() vì cur được tạo bên trong order_service
+        conn.close()
 
 
 # ═══════════════════════════════════════════════════════════════
-# ENDPOINT 3: Xem đơn của khách
-# URL: GET /api/orders/customer/{customer_id}
+# POST /api/orders/{order_id}/items   [NEW] — §2.3 gọi thêm món
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/orders/{order_id}/items")
+def add_items(order_id: str, req: AddItemsRequest):
+    """
+    Gọi thêm món vào đơn đang active — bất kỳ lúc nào (§2.3).
+    Nếu đặt trước giờ đến và có pre-order, trả về deposit_amount cần bổ sung.
+    """
+    if not req.items:
+        raise HTTPException(status_code=400, detail="Phải có ít nhất 1 món")
+
+    items = [{"menu_item_id": i.menu_item_id, "quantity": i.quantity} for i in req.items]
+
+    conn = get_conn()
+    try:
+        return add_items_to_order(
+            conn,
+            order_id=order_id,
+            items=items,
+            customer_id=req.customer_id,
+            is_customer=True,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+# ═══════════════════════════════════════════════════════════════
+# POST /api/orders/{order_id}/request-payment   [NEW] — §2.6
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/orders/{order_id}/request-payment")
+def request_payment_endpoint(order_id: str, req: PaymentRequestAction):
+    """
+    Khách hàng yêu cầu thanh toán → đổi status 'đang xử lý' → 'chờ thanh toán'.
+    Nhân viên sẽ nhận thông báo và xác nhận trước khi khách thanh toán.
+    """
+    conn = get_conn()
+    try:
+        return svc_request_payment(conn, order_id, req.customer_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+# ═══════════════════════════════════════════════════════════════
+# POST /api/orders/{order_id}/cancel-payment-request   [NEW] — §2.6
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/orders/{order_id}/cancel-payment-request")
+def cancel_payment_request_endpoint(order_id: str, req: PaymentRequestAction):
+    """
+    Khách hàng hủy yêu cầu thanh toán → đổi status 'chờ thanh toán' → 'đang xử lý'.
+    """
+    conn = get_conn()
+    try:
+        return svc_cancel_payment_request(conn, order_id, req.customer_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+# ═══════════════════════════════════════════════════════════════
+# GET /api/orders/customer/{customer_id}
 # ═══════════════════════════════════════════════════════════════
 
 @router.get("/orders/customer/{customer_id}")
 def get_customer_orders(customer_id: str):
-    # {customer_id} trên URL → FastAPI tự lấy vào tham số customer_id
-    # ví dụ: GET /api/orders/customer/C000001 → customer_id = "C000001"
     conn = get_conn()
     cur  = conn.cursor()
-
     try:
         cur.execute(
             """
-            -- Dịch nghĩa:
-            -- "Lấy tất cả đơn hàng của khách này,
-            --  kèm tên nhân viên phụ trách, mới nhất lên đầu"
-
-            SELECT o.OrderID,       -- mã đơn
-                   o.OrderDate,     -- ngày đặt
-                   o.OrderStatus,   -- trạng thái: đang xử lý / hoàn tất / đã thanh toán / đã hủy
-                   o.TotalAmount,   -- tổng tiền (có thể NULL nếu đơn đang xử lý dở)
-                   o.TableID,       -- bàn số mấy
-                   s.FullName AS staff_name  -- tên NV (lấy từ bảng Staff qua JOIN)
+            SELECT o.OrderID,
+                   o.ReservationTime,    -- [FIX 1] OrderDate → ReservationTime
+                   o.EstimatedEndTime,
+                   o.OrderStatus,
+                   o.TotalAmount,
+                   o.DepositPaid,
+                   o.TableID,
+                   s.FullName AS staff_name
             FROM Order_ o
-            JOIN Staff s ON s.StaffID = o.StaffID  -- nối để lấy tên NV thay vì chỉ có StaffID
-            WHERE o.CustomerID = %s                 -- chỉ lấy đơn của khách này
-            ORDER BY o.OrderDate DESC, o.OrderID DESC  -- mới nhất lên đầu
+            JOIN Staff s ON s.StaffID = o.StaffID
+            WHERE o.CustomerID = %s
+            ORDER BY o.ReservationTime DESC    -- [FIX 1]
             """,
-            (customer_id,),  # %s = customer_id truyền vào
+            (customer_id,),
         )
         return [
             {
-                "order_id":   r[0],
-                "order_date": str(r[1]),
-                "status":     r[2],
-                "total":      float(r[3]) if r[3] else None,  # TotalAmount có thể NULL
-                "table_id":   r[4],
-                "staff_name": r[5],
+                "order_id":         r[0],
+                "reservation_time": r[1].isoformat() if r[1] else None,
+                "estimated_end":    r[2].isoformat() if r[2] else None,
+                "status":           r[3],
+                "total":            float(r[4]) if r[4] else None,
+                "deposit_paid":     float(r[5]) if r[5] else 0.0,
+                "table_id":         r[6],
+                "staff_name":       r[7],
             }
             for r in cur.fetchall()
         ]
@@ -175,68 +248,55 @@ def get_customer_orders(customer_id: str):
 
 
 # ═══════════════════════════════════════════════════════════════
-# ENDPOINT 4: Xem hóa đơn chi tiết
-# URL: GET /api/orders/{order_id}/invoice
+# GET /api/orders/{order_id}/invoice
 # ═══════════════════════════════════════════════════════════════
 
 @router.get("/orders/{order_id}/invoice")
 def get_invoice(order_id: str):
     conn = get_conn()
     cur  = conn.cursor()
-
     try:
-        # ── QUERY 1: lấy thông tin chung của đơn ──────────────────────────
         cur.execute(
             """
-            -- Dịch nghĩa:
-            -- "Lấy thông tin đơn hàng này, kèm tên khách và tên nhân viên"
-
             SELECT o.OrderID,
-                   o.OrderDate,
+                   o.ReservationTime,    -- [FIX 1] OrderDate → ReservationTime
+                   o.EstimatedEndTime,
                    o.OrderStatus,
                    o.TotalAmount,
+                   o.DepositPaid,
                    o.TableID,
-                   c.FullName,   -- tên khách (JOIN Customer)
-                   s.FullName    -- tên NV    (JOIN Staff)
+                   c.FullName,
+                   s.FullName
             FROM Order_ o
-            JOIN Customer c ON c.CustomerID = o.CustomerID  -- lấy tên khách
-            JOIN Staff    s ON s.StaffID    = o.StaffID     -- lấy tên NV
-            WHERE o.OrderID = %s                             -- đúng đơn này
+            JOIN Customer c ON c.CustomerID = o.CustomerID
+            JOIN Staff    s ON s.StaffID    = o.StaffID
+            WHERE o.OrderID = %s
             """,
             (order_id,),
         )
-        row = cur.fetchone()  # chỉ có 1 đơn duy nhất → fetchone, không fetchall
-
+        row = cur.fetchone()
         if not row:
-            # không tìm thấy đơn → trả 404
             raise HTTPException(status_code=404, detail="Không tìm thấy đơn hàng")
 
-        # gom thông tin đơn vào dict
         order = {
-            "order_id":      row[0],
-            "order_date":    str(row[1]),
-            "status":        row[2],
-            "total_amount":  float(row[3]) if row[3] else None,
-            "table_id":      row[4],
-            "customer_name": row[5],  # row[5] = c.FullName
-            "staff_name":    row[6],  # row[6] = s.FullName
+            "order_id":         row[0],
+            "reservation_time": row[1].isoformat() if row[1] else None,
+            "estimated_end":    row[2].isoformat() if row[2] else None,
+            "status":           row[3],
+            "total_amount":     float(row[4]) if row[4] else None,
+            "deposit_paid":     float(row[5]) if row[5] else 0.0,
+            "table_id":         row[6],
+            "customer_name":    row[7],
+            "staff_name":       row[8],
         }
 
-        # ── QUERY 2: lấy danh sách món trong đơn ─────────────────────────
         cur.execute(
             """
-            -- Dịch nghĩa:
-            -- "Lấy tất cả món trong đơn này,
-            --  kèm tên món (từ MenuItem), số lượng, đơn giá, thành tiền"
-
-            SELECT m.Food_name,    -- tên món: Bò lúc lắc, Bia Heineken...
-                   od.Quantity,    -- số lượng đặt
-                   od.Unit_price,  -- giá tại thời điểm đặt (khác MenuItem.Price nếu đã đổi giá)
-                   od.Subtotal     -- thành tiền = Quantity × Unit_price
+            SELECT m.Food_name, od.Quantity, od.Unit_price, od.Subtotal
             FROM OrderDetail od
-            JOIN MenuItem m ON m.MenuItemID = od.MenuItemID  -- nối để lấy tên món
-            WHERE od.OrderID = %s   -- chỉ lấy món của đơn này
-            ORDER BY m.Food_name    -- sắp xếp A-Z cho dễ đọc
+            JOIN MenuItem m ON m.MenuItemID = od.MenuItemID
+            WHERE od.OrderID = %s
+            ORDER BY m.Food_name
             """,
             (order_id,),
         )
@@ -250,31 +310,80 @@ def get_invoice(order_id: str):
             for r in cur.fetchall()
         ]
 
-        # trả về cả 2: thông tin đơn + danh sách món
         return {"order": order, "items": items}
-
     finally:
         cur.close()
         conn.close()
 
 
 # ═══════════════════════════════════════════════════════════════
-# ENDPOINT 5: Thanh toán
-# URL: POST /api/payments
+# POST /api/payments   [FIX 3] — thêm payment_type
 # ═══════════════════════════════════════════════════════════════
 
 @router.post("/payments")
 def pay(req: PaymentRequest):
+    """
+    Thanh toán cọc hoặc hoàn tất — §2.3, §4.5.
+    payment_type: 'cọc' | 'hoàn tất'
+    """
     conn = get_conn()
     try:
-        # logic thanh toán nằm trong payment_service.py
-        # gồm: kiểm tra đơn → INSERT Payment → UPDATE OrderStatus → giải phóng bàn
-        return create_payment(conn, req.order_id, req.amount, req.method)
-
+        return create_payment(conn, req.order_id, req.amount, req.method, req.payment_type)
     except ValueError as e:
-        # lỗi do data sai: đơn đã thanh toán rồi, đơn đã hủy...
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
+        conn.close()
+
+
+# ═══════════════════════════════════════════════════════════════
+# GET /api/payments/{payment_id}/verify   [NEW] — §5.4 verify RSA signature
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/payments/{payment_id}/verify")
+def verify_payment(payment_id: str):
+    """
+    Verify RSA digital signature của hoá đơn (§5.4).
+    Placeholder — sẽ wire vào crypto layer khi tích hợp security.
+    """
+    conn = get_conn()
+    cur  = conn.cursor()
+    try:
+        cur.execute(
+            """
+            SELECT p.PaymentID, p.Amount, p.PaymentDate,
+                   p.PaymentMethod, p.PaymentType, p.Signature, p.OrderID
+            FROM Payment p
+            WHERE p.PaymentID = %s
+            """,
+            (payment_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Không tìm thấy thanh toán")
+
+        payment_id_, amount, pay_date, method, pay_type, signature, order_id = row
+
+        if not signature:
+            return {
+                "payment_id": payment_id_,
+                "verified":   False,
+                "note":       "Chữ ký số chưa được gắn (security layer chưa tích hợp)",
+            }
+
+        # Khi wire security layer:
+        # from services.payment_service import _serialize_payment
+        # from security.crypto import verify_signature
+        # payload  = _serialize_payment(payment_id_, order_id, float(amount), method, pay_type)
+        # verified = verify_signature(payload, signature)
+        # return {"payment_id": payment_id_, "verified": verified}
+
+        return {
+            "payment_id": payment_id_,
+            "verified":   None,
+            "note":       "Verify logic chưa được wire — signature tồn tại trong DB",
+        }
+    finally:
+        cur.close()
         conn.close()
