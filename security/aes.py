@@ -7,9 +7,9 @@ Thông số:
     Block size: 128 bit (16 byte)
     Rounds    : 10
 
-Demo (giáo trình):
-    key       = b"KhiemTranCong\x00\x00\x00"   (tên sinh viên, padded 16 byte)
-    plaintext = b"UTH - University of Transport HCMC"
+Demo (project):
+    key       = b"KhiemTranCong\x00\x00\x00"
+    plaintext = b"0901111001"
 """
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -332,7 +332,7 @@ if __name__ == '__main__':
     # IV  = 16 byte cố định (demo)
     IV  = bytes([0x00] * 16)
 
-    plaintext = b"UTH - University of Transport HCMC"
+    plaintext = b"0901111001"
 
     print("=== AES-128-CBC Demo ===")
     print(f"Key (hex)       : {KEY.hex()}")

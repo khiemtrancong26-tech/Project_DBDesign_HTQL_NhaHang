@@ -13,6 +13,8 @@ Chỉ dùng built-in Python:
 
 from security.sha256 import sha256
 
+_RSA_SEED = b"KhiemTranCong"
+
 # ══════════════════════════════════════════════════════════════════════════
 # PRNG xác định (deterministic) — dùng SHA-256 làm bộ sinh số giả ngẫu nhiên
 # Seed = tên sinh viên → không cần os.urandom
@@ -125,7 +127,7 @@ def _mod_inverse(e: int, phi: int) -> int:
 # Sinh khóa RSA
 # ══════════════════════════════════════════════════════════════════════════
 
-def generate_rsa_keypair(bits: int = 512, seed: bytes = b"KhiemTranCong"):
+def generate_rsa_keypair(bits: int = 512, seed: bytes = _RSA_SEED):
     """
     Sinh cặp khóa RSA.
 
@@ -230,10 +232,8 @@ def verify(message: bytes, signature_hex: str, public_key: tuple) -> bool:
 # Seed = tên sinh viên → deterministic, không cần os.urandom
 # ══════════════════════════════════════════════════════════════════════════
 
-_DEFAULT_SEED = b"KhiemTranCong"   # ← thay tên sinh viên thực tế ở đây
-
 # Sinh key 1 lần khi module load — kết quả luôn giống nhau với cùng seed
-_PUBLIC_KEY, _PRIVATE_KEY = generate_rsa_keypair(bits=512, seed=_DEFAULT_SEED)
+_PUBLIC_KEY, _PRIVATE_KEY = generate_rsa_keypair(bits=512, seed=_RSA_SEED)
 
 
 def get_public_key():
@@ -251,31 +251,29 @@ def get_private_key():
 # ══════════════════════════════════════════════════════════════════════════
 if __name__ == '__main__':
     print("=== RSA Demo ===")
-    print("Đang sinh khóa RSA-512 (deterministic từ tên)...")
+    print("Generating RSA-512 keys (deterministic from project seed)...")
 
-    pub, priv = generate_rsa_keypair(bits=512, seed=b"KhiemTranCong")
+    pub, priv = generate_rsa_keypair(bits=512, seed=_RSA_SEED)
     e, n = pub
     d, _ = priv
 
     print(f"e (public exp)  : {e}")
     print(f"n (modulus, hex): {hex(n)[:40]}...")
-    print(f"d (private exp) : [ẩn — chỉ dùng nội bộ]")
+    print("d (private exp) : [hidden - internal use only]")
 
-    # Test chữ ký số
-    print("\n=== Chữ ký số RSA-SHA256 Demo ===")
-    plaintext = b"UTH - University of Transport HCMC"
-    print(f"Message : {plaintext.decode()}")
+    print("\n=== RSA-SHA256 Signature Demo ===")
+    payload = b'{"payment_id":"PAY001","amount":185000.0}'
+    print(f"Payload : {payload.decode()}")
 
-    sig = sign(plaintext, priv)
-    print(f"Signature (hex, 40 ký tự đầu): {sig[:40]}...")
+    sig = sign(payload, priv)
+    print(f"Signature (hex, first 40 chars): {sig[:40]}...")
 
-    ok = verify(plaintext, sig, pub)
-    print(f"Verify  : {'HỢP LỆ ✓' if ok else 'KHÔNG HỢP LỆ ✗'}")
+    ok = verify(payload, sig, pub)
+    print(f"Verify  : {'VALID' if ok else 'INVALID'}")
 
-    # Test giả mạo
-    tampered = b"UTH - University of Transport HCM"
+    tampered = payload + b"tamper"
     ok2 = verify(tampered, sig, pub)
-    print(f"Verify (tampered): {'HỢP LỆ' if ok2 else 'KHÔNG HỢP LỆ ✓ (đúng, bị phát hiện)'}")
+    print(f"Verify (tampered): {'VALID' if ok2 else 'INVALID (expected)'}")
 
-    assert ok and not ok2, "Chữ ký số test thất bại"
+    assert ok and not ok2, "RSA signature self-test failed"
     print("\nSelf-test: PASS")

@@ -2,9 +2,9 @@
 SHA-256 — Triển khai từ đầu, không dùng thư viện mật mã.
 Theo đúng chuẩn FIPS 180-4.
 
-Demo (giáo trình):
-    plaintext = b"UTH - University of Transport HCMC"
-    hash      = sha256_hex(plaintext)
+Demo (project):
+    payload = b'{"payment_id":"PAY001","amount":185000.0}'
+    hash    = sha256_hex(payload)
 """
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -167,8 +167,8 @@ if __name__ == '__main__':
     assert sha256_hex(b'abc') == \
         'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
 
-    # Demo theo giáo trình
-    plaintext = b"UTH - University of Transport HCMC"
+    # Demo theo dữ liệu project
+    plaintext = b'{"payment_id":"PAY001","amount":185000.0}'
     print("=== SHA-256 Demo ===")
     print(f"Input    : {plaintext.decode()}")
     print(f"SHA-256  : {sha256_hex(plaintext)}")

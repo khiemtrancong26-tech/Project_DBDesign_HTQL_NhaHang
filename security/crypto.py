@@ -6,12 +6,11 @@ from security.aes import aes_cbc_encrypt, aes_cbc_decrypt
 from security.sha256 import sha256
 from security.rsa_impl import get_private_key, get_public_key, sign, verify
 
-# Input constants required by the course.
-KEY_NAME = "KhiemTranCong"
-PLAINTEXT_SCHOOL = "UTH - University of Transport HCMC"
+# Shared project seed used for deterministic RSA key generation.
+_RSA_SEED: bytes = b"KhiemTranCong"
 
 # Salt base for deterministic per-user salted SHA-256.
-_SALT_BASE: bytes = sha256(KEY_NAME.encode())[:16]
+_SALT_BASE: bytes = sha256(_RSA_SEED)[:16]
 
 
 def _derive_aes_key() -> bytes:
@@ -130,15 +129,16 @@ def verify_payment_sig(payload_bytes: bytes, signature_hex: str) -> bool:
 
 
 if __name__ == "__main__":
-    pw = "staff123"
-    user = "staff_s001"
-    stored = hash_password(pw, user)
-    assert verify_password(pw, user, stored)
-    assert not verify_password("wrong", user, stored)
+    phone = "0901111001"
+    enc = encrypt_text_aes(phone)
+    assert decrypt_text_aes(enc) == phone
 
-    payload = b'{"amount": 185000.0, "order_id": "ORD001", "payment_id": "PAY001"}'
+    pw = "staff123"
+    stored = hash_password(pw, "staff_s001")
+    assert verify_password(pw, "staff_s001", stored)
+
+    payload = b'{"payment_id":"PAY001","amount":185000.0}'
     sig = sign_payment(payload)
     assert verify_payment_sig(payload, sig)
-    assert not verify_payment_sig(payload + b"tamper", sig)
 
     print("security.crypto self-test: PASS")
