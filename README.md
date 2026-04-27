@@ -1,13 +1,13 @@
-﻿# He Thong Quan Ly Nha Hang
+﻿# Hệ Thống Quản Lý Nhà Hàng
 
-Ung dung web quan ly nha hang voi 3 vai tro: **Khach hang**, **Nhan vien phuc vu**, **Quan ly**.
-Backend dung FastAPI + PostgreSQL, frontend thuan HTML/CSS/JS.
+Ứng dụng web quản lý nhà hàng với 3 vai trò: **Khách hàng**, **Nhân viên phục vụ**, **Quản lý**.
+Backend dùng FastAPI + PostgreSQL, frontend thuần HTML/CSS/JS.
 
 ---
 
-## Cong nghe
+## Công nghệ
 
-| Thanh phan | Cong nghe |
+| Thành phần | Công nghệ |
 |---|---|
 | Backend | FastAPI + Uvicorn |
 | Database | PostgreSQL + psycopg2 |
@@ -16,11 +16,11 @@ Backend dung FastAPI + PostgreSQL, frontend thuan HTML/CSS/JS.
 
 ---
 
-## Cai dat
+## Cài đặt
 
-### Yeu cau
+### Yêu cầu
 - Python 3.11+
-- PostgreSQL dang chay
+- PostgreSQL đang chạy
 
 ### 1. Clone repo
 
@@ -29,7 +29,7 @@ git clone https://github.com/khiemtrancong26-tech/Project_DBDesign_HTQL_NhaHang.
 cd Project_DBDesign_HTQL_NhaHang
 ```
 
-### 2. Tao va kich hoat moi truong ao
+### 2. Tạo và kích hoạt môi trường ảo
 
 ```bash
 python -m venv venv
@@ -41,15 +41,15 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-### 3. Cai thu vien
+### 3. Cài thư viện
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Cau hinh `.env`
+### 4. Cấu hình `.env`
 
-Tao file `.env` o thu muc goc:
+Tạo file `.env` ở thư mục gốc:
 
 ```env
 DB_HOST=localhost
@@ -59,9 +59,9 @@ DB_USER=postgres
 DB_PASSWORD=mat_khau_cua_ban
 ```
 
-### 5. Khoi tao database
+### 5. Khởi tạo database
 
-Chay lan luot trong PostgreSQL:
+Chạy lần lượt trong PostgreSQL:
 
 ```sql
 \i database/01_schema.sql
@@ -70,13 +70,13 @@ Chay lan luot trong PostgreSQL:
 
 ---
 
-## Chay ung dung
+## Chạy ứng dụng
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Sau do mo:
+Sau đó mở:
 
 ```text
 http://localhost:8000
@@ -84,7 +84,7 @@ http://localhost:8000
 
 ---
 
-## Cau truc project
+## Cấu trúc project
 
 ```text
 app/
@@ -114,20 +114,20 @@ frontend/
 
 ---
 
-## Vai tro tung tang
+## Vai trò từng tầng
 
-| Tang | Vai tro |
+| Tầng | Vai trò |
 |---|---|
-| `frontend/` | Giao dien demo, goi API, render du lieu |
-| `app/routers/` | Nhan request, validate input co ban, goi service |
-| `app/services/` | Xu ly nghiep vu chinh |
-| `database/` | Schema, rang buoc, du lieu mau |
-| `app/db.py` | Ket noi PostgreSQL |
-| `app/main.py` | Khoi dong FastAPI app va serve frontend |
+| `frontend/` | Giao diện demo, gọi API, render dữ liệu |
+| `app/routers/` | Nhận request, validate input cơ bản, gọi service |
+| `app/services/` | Xử lý nghiệp vụ chính |
+| `database/` | Schema, ràng buộc, dữ liệu mẫu |
+| `app/db.py` | Kết nối PostgreSQL |
+| `app/main.py` | Khởi động FastAPI app và serve frontend |
 
 ---
 
-## API endpoints chinh
+## API endpoints chính
 
 ### Auth
 
