@@ -6,6 +6,7 @@ Run server:
 """
 
 import sys
+import os
 from pathlib import Path
 
 # Allow running directly as: python app/main.py (VSCode Run Python File)
@@ -24,9 +25,18 @@ app = FastAPI(title="He Thong Quan Ly Nha Hang")
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
+CORS_ALLOW_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOW_ORIGINS",
+        "http://127.0.0.1:8000,http://localhost:8000",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOW_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )

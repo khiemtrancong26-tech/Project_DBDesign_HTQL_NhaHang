@@ -8,10 +8,11 @@ Staff router:
     POST  /api/staff/orders/{order_id}/items     — Staff thêm món tại bàn (không cần deposit)
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.db import get_conn
+from security.auth_guard import authenticate_request, ensure_actor_matches
 from app.services.order_service import (
     add_items_to_order, VALID_TRANSITIONS_STAFF,
     confirm_payment_request as svc_confirm_payment,
@@ -86,11 +87,13 @@ def _get_staff_order_summary(cur, staff_id: str, order_id: str) -> dict | None:
 # ── GET /api/staff/{staff_id}/orders ─────────────────────────────────────
 
 @router.get("/staff/{staff_id}/orders")
-def get_staff_orders(staff_id: str):
+def get_staff_orders(staff_id: str, request: Request):
     """
     Trả về đơn được phân công cho nhân viên này.
     Ưu tiên hiện 'đang xử lý' trước, sau đó 'hoàn tất'.
     """
+    actor = authenticate_request(request, {"staff"})
+    ensure_actor_matches(actor, staff_id, "staff_id")
     conn = get_conn()
     cur  = conn.cursor()
 
@@ -130,12 +133,14 @@ def get_staff_orders(staff_id: str):
 
 
 @router.get("/staff/{staff_id}/orders/{order_id}/details")
-def get_staff_order_details(staff_id: str, order_id: str):
+def get_staff_order_details(staff_id: str, order_id: str, request: Request):
     """
     Chi tiết đơn hàng dành riêng cho staff phụ trách.
 
     Chỉ staff được phân công mới xem được detail của order này.
     """
+    actor = authenticate_request(request, {"staff"})
+    ensure_actor_matches(actor, staff_id, "staff_id")
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -180,7 +185,7 @@ def get_staff_order_details(staff_id: str, order_id: str):
 # ── PATCH /api/orders/{order_id}/status ──────────────────────────────────
 
 @router.patch("/orders/{order_id}/status")
-def update_order_status(order_id: str, req: UpdateStatusRequest):
+def update_order_status(order_id: str, req: UpdateStatusRequest, request: Request):
     """
     Nhân viên cập nhật trạng thái đơn — có validate state machine (§2.7).
 
@@ -190,6 +195,8 @@ def update_order_status(order_id: str, req: UpdateStatusRequest):
     'hoàn tất' chỉ được set qua /api/staff/orders/{id}/confirm-payment.
     'đã thanh toán' chỉ được set qua /api/payments.
     """
+    actor = authenticate_request(request, {"staff"})
+    ensure_actor_matches(actor, req.staff_id, "staff_id")
     if req.status == "đã thanh toán":
         raise HTTPException(
             status_code=400,
@@ -264,7 +271,7 @@ def update_order_status(order_id: str, req: UpdateStatusRequest):
 # ── POST /api/staff/orders/{order_id}/items ──────────────────────────────
 
 @router.post("/staff/orders/{order_id}/items")
-def staff_add_items(order_id: str, req: AddItemsRequest):
+def staff_add_items(order_id: str, req: AddItemsRequest, request: Request):
     """
     Staff thêm món tại bàn cho khách (§2.3).
 
@@ -272,6 +279,8 @@ def staff_add_items(order_id: str, req: AddItemsRequest):
     - Chỉ thêm khi đơn đang 'đang xử lý'.
     - Không bao giờ yêu cầu deposit — staff không pre-order.
     """
+    actor = authenticate_request(request, {"staff"})
+    ensure_actor_matches(actor, req.staff_id, "staff_id")
     conn = get_conn()
     cur  = conn.cursor()
 
@@ -318,13 +327,15 @@ def staff_add_items(order_id: str, req: AddItemsRequest):
 # ── POST /api/staff/orders/{order_id}/confirm-payment ────────────────────
 
 @router.post("/staff/orders/{order_id}/confirm-payment")
-def confirm_payment(order_id: str, req: ConfirmPaymentRequest):
+def confirm_payment(order_id: str, req: ConfirmPaymentRequest, request: Request):
     """
     Nhân viên xác nhận yêu cầu thanh toán của khách (§2.6).
 
     Chuyển status 'chờ thanh toán' → 'hoàn tất'.
     Sau đó khách mới được phép tiến hành thanh toán QR/thẻ/tiền mặt.
     """
+    actor = authenticate_request(request, {"staff"})
+    ensure_actor_matches(actor, req.staff_id, "staff_id")
     conn = get_conn()
     cur = conn.cursor()
     try:

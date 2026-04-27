@@ -27,15 +27,11 @@ DEPOSIT_RATE  = 0.30   # §2.3 — cọc 30% tổng đơn khi pre-order
 #           đang xử lý / chờ thanh toán / hoàn tất  → đã hủy
 #
 # Staff KHÔNG tự đánh dấu 'hoàn tất' — chỉ xác nhận payment request từ khách.
+# Manager đi qua endpoint riêng (cancel_order, reschedule_order), không dùng dict này.
 VALID_TRANSITIONS_STAFF = {
     "đang xử lý":      {"đã hủy"},   # staff chỉ được hủy (khi chưa cọc)
     "chờ thanh toán":  set(),         # confirm payment dùng endpoint riêng
     "hoàn tất":        set(),
-}
-VALID_TRANSITIONS_MANAGER = {
-    "đang xử lý":      {"đã hủy"},
-    "chờ thanh toán":  {"đã hủy"},
-    "hoàn tất":        {"đã hủy"},
 }
 
 
@@ -470,10 +466,6 @@ def cancel_order(
     finally:
         cur.close()
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# Private helper
-# ══════════════════════════════════════════════════════════════════════════
 
 # ══════════════════════════════════════════════════════════════════════════
 # request_payment / confirm_payment_request / cancel_payment_request

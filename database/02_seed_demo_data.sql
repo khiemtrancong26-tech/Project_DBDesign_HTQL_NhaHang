@@ -59,8 +59,8 @@ INSERT INTO Table_ (TableID, Location_, TableStatus, Capacity) VALUES
   ('T08', 'Khu ngoài', 'trống', 4);
 
 -- Staff — đúng §1: 4 Phục vụ cố định, không model ca làm
--- password còn plain text — bcrypt sẽ hash khi tích hợp security layer
--- PhoneNumber còn plain text — AES sẽ encrypt khi tích hợp security layer
+-- password còn plain text — có thể migrate sang SHA-256 + salt bằng 03_secure_seed_data.py
+-- PhoneNumber giữ plain text để quản lý tra cứu liên hệ nhanh
 
 INSERT INTO Staff (StaffID, FullName, Role_, PhoneNumber, username, password) VALUES
   ('S000001', 'Nguyễn Văn Minh', 'Phục vụ', '0901111001', 'staff_s001', 'staff123'),

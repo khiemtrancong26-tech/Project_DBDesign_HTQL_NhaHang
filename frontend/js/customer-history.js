@@ -280,12 +280,13 @@ async function confirmDepositFromHistory() {
   msgEl.classList.add('hidden');
 
   try {
-    await api('POST', '/payments', {
+    const payment = await api('POST', '/payments', {
       order_id,
       amount,
       method,
       payment_type: 'cọc',
     });
+    await verifyPaymentAndAlert(payment.payment_id);
     closeModal('modal-deposit');
     loadHistory(); // Refresh lịch sử
   } catch (e) {
@@ -440,12 +441,13 @@ async function confirmFinalPayment() {
   msgEl.classList.add('hidden');
 
   try {
-    await api('POST', '/payments', {
+    const payment = await api('POST', '/payments', {
       order_id,
       amount: remaining,
       method,
       payment_type: 'hoàn tất',
     });
+    await verifyPaymentAndAlert(payment.payment_id);
     closeModal('modal-pay-warning');
     loadHistory(); // Card sẽ đổi sang trạng thái "đã thanh toán"
   } catch (e) {

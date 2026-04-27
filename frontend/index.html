@@ -316,6 +316,7 @@
       <button class="tab-btn" onclick="switchTab('tab-revenue', this); loadRevenue()">Doanh thu</button>
       <button class="tab-btn" onclick="switchTab('tab-staff-perf', this); loadStaffPerf()">Nhân viên</button>
       <button id="manager-tab-failed" class="tab-btn" onclick="switchTab('tab-failed', this); loadFailedBookings()">Đặt bàn thất bại</button>
+      <button class="tab-btn" onclick="switchTab('tab-audit', this); loadAuditLog()">Audit log</button>
       <button class="tab-btn" onclick="switchTab('tab-sql', this)">🖥️ SQL Terminal</button>
     </nav>
     <div id="manager-live-alerts" class="manager-live-alerts"></div>
@@ -344,6 +345,15 @@
 
     <div id="tab-failed" class="tab-content hidden">
       <div style="padding:16px" id="failed-bookings-content"></div>
+    </div>
+
+    <div id="tab-audit" class="tab-content hidden">
+      <div class="toolbar" style="padding:16px 16px 0;gap:8px;flex-wrap:wrap">
+        <input id="audit-actor-filter" type="text" placeholder="Lọc ActorID (tuỳ chọn)" style="max-width:220px" />
+        <input id="audit-target-filter" type="text" placeholder="Lọc TargetTable (tuỳ chọn)" style="max-width:220px" />
+        <button onclick="loadAuditLog()">Lọc</button>
+      </div>
+      <div style="padding:16px" id="audit-log-content"></div>
     </div>
 
     <!-- ── TAB: SQL TERMINAL ── -->
@@ -384,6 +394,12 @@
         <div class="sql-toolbar">
           <button onclick="runManagerSQL()" class="sql-run-btn">▶&nbsp; Run</button>
           <button onclick="clearSqlTerminal()" class="sql-clear-btn">✕ Clear</button>
+          <button onclick="runSecureSeed(false)" class="sql-clear-btn" title="Hash password + ký RSA cho dữ liệu mới chèn">
+            🔒 Mã hoá lại dữ liệu
+          </button>
+          <button onclick="runSecureSeed(true)" class="sql-clear-btn" title="Xem trước thay đổi, không ghi DB">
+            🔍 Dry-run
+          </button>
           <span id="sql-status" class="sql-status-text"></span>
         </div>
 

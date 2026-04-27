@@ -8,9 +8,9 @@ CREATE TABLE Customer (
     CustomerID  VARCHAR(50)  PRIMARY KEY,
     FullName    VARCHAR(100) NOT NULL,
     PhoneNumber TEXT         NOT NULL,   -- [FIX 1] TEXT thay VARCHAR(20)
-                                         -- Lưu dạng AES-256-GCM ciphertext base64 (~58 chars)
+                                         -- Lưu plain text để manager tra cứu liên hệ nhanh
     username    VARCHAR(100) NOT NULL UNIQUE,
-    password    VARCHAR(255) NOT NULL    -- bcrypt hash (~60 chars); 255 = convention chuẩn
+    password    VARCHAR(255) NOT NULL    -- plain seed hoặc SHA-256 salt hash dạng salt:hash
 );
 
 -- Nhân Viên
@@ -18,9 +18,9 @@ CREATE TABLE Staff (
     StaffID     VARCHAR(50)  PRIMARY KEY,
     FullName    VARCHAR(100) NOT NULL,
     Role_       VARCHAR(100) NOT NULL,   -- 'Phục vụ' | 'Quản lý'
-    PhoneNumber TEXT         NOT NULL,   -- [FIX 1] TEXT thay VARCHAR(20) — cùng lý do trên
+    PhoneNumber TEXT         NOT NULL,   -- [FIX 1] TEXT thay VARCHAR(20) — lưu plain text
     username    VARCHAR(100) NOT NULL UNIQUE,
-    password    VARCHAR(255) NOT NULL    -- bcrypt hash
+    password    VARCHAR(255) NOT NULL    -- plain seed hoặc SHA-256 salt hash dạng salt:hash
 );
 
 -- Bàn Ăn
@@ -150,11 +150,5 @@ CREATE TABLE AuditLog (
 CREATE INDEX idx_auditlog_actor   ON AuditLog (ActorID, CreatedAt DESC);
 CREATE INDEX idx_auditlog_target  ON AuditLog (TargetTable, TargetID);
 CREATE INDEX idx_auditlog_created ON AuditLog (CreatedAt DESC);
-
-
-
-
-
-
 
 

@@ -12,15 +12,18 @@ Thay đổi so với v1:
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.db import get_conn
+from app.services.audit_service import insert_audit_log
+from security.auth_guard import authenticate_request
 from app.services.order_service import (
     create_reservation,
     reschedule_order,
     cancel_order,
 )
+from database.secure_seed import secure_seed
 
 router = APIRouter()
 
@@ -30,7 +33,8 @@ router = APIRouter()
 # ═══════════════════════════════════════════════════════════════
 
 @router.get("/manager/orders")
-def get_all_orders(status: str = None):
+def get_all_orders(request: Request, status: str = None):
+    authenticate_request(request, {"manager"})
     conn = get_conn()
     cur  = conn.cursor()
     try:
@@ -80,7 +84,8 @@ def get_all_orders(status: str = None):
 # ═══════════════════════════════════════════════════════════════
 
 @router.get("/manager/revenue")
-def get_revenue():
+def get_revenue(request: Request):
+    authenticate_request(request, {"manager"})
     conn = get_conn()
     cur  = conn.cursor()
     try:
@@ -121,7 +126,8 @@ def get_revenue():
 # ═══════════════════════════════════════════════════════════════
 
 @router.get("/manager/staff-performance")
-def get_staff_performance():
+def get_staff_performance(request: Request):
+    authenticate_request(request, {"manager"})
     conn = get_conn()
     cur  = conn.cursor()
     try:
@@ -159,11 +165,12 @@ def get_staff_performance():
 # ═══════════════════════════════════════════════════════════════
 
 @router.get("/manager/failed-bookings")
-def get_failed_bookings(contact_status: str = None):
+def get_failed_bookings(request: Request, contact_status: str = None):
     """
     Danh sách khách không đặt được bàn — §3.3, §6.
     Mặc định lấy tất cả, lọc theo contact_status nếu truyền vào.
     """
+    authenticate_request(request, {"manager"})
     conn = get_conn()
     cur  = conn.cursor()
     try:
@@ -211,10 +218,11 @@ class UpdateFailedBookingRequest(BaseModel):
 VALID_CONTACT_STATUSES = {"chưa liên hệ", "đã liên hệ", "đã giải quyết"}
 
 @router.patch("/manager/failed-bookings/{failed_id}")
-def update_failed_booking(failed_id: str, req: UpdateFailedBookingRequest):
+def update_failed_booking(failed_id: str, req: UpdateFailedBookingRequest, request: Request):
     """
     Manager cập nhật trạng thái liên hệ sau khi gọi điện cho khách.
     """
+    actor = authenticate_request(request, {"manager"})
     if req.contact_status not in VALID_CONTACT_STATUSES:
         raise HTTPException(
             status_code=400,
@@ -225,11 +233,14 @@ def update_failed_booking(failed_id: str, req: UpdateFailedBookingRequest):
     cur  = conn.cursor()
     try:
         cur.execute(
-            "SELECT FailedID FROM FailedBooking WHERE FailedID = %s",
+            "SELECT ContactStatus, Note FROM FailedBooking WHERE FailedID = %s",
             (failed_id,),
         )
-        if not cur.fetchone():
+        row = cur.fetchone()
+        if not row:
             raise HTTPException(status_code=404, detail="Không tìm thấy FailedBooking")
+        old_status, old_note = row
+        new_note = req.note if req.note is not None else old_note
 
         cur.execute(
             """
@@ -239,6 +250,17 @@ def update_failed_booking(failed_id: str, req: UpdateFailedBookingRequest):
             WHERE FailedID = %s
             """,
             (req.contact_status, req.note, failed_id),
+        )
+
+        insert_audit_log(
+            cur,
+            actor_id=actor["uid"],
+            actor_role=actor["role"],
+            action="CONTACT_FAILED_BOOKING",
+            target_table="FailedBooking",
+            target_id=failed_id,
+            old_value={"contact_status": old_status, "note": old_note},
+            new_value={"contact_status": req.contact_status, "note": new_note},
         )
         conn.commit()
 
@@ -260,6 +282,7 @@ def update_failed_booking(failed_id: str, req: UpdateFailedBookingRequest):
 
 @router.get("/manager/audit-log")
 def get_audit_log(
+    request:      Request,
     actor_id:     str  = None,
     target_table: str  = None,
     limit:        int  = 50,
@@ -269,6 +292,7 @@ def get_audit_log(
     Có thể lọc theo actor_id hoặc target_table.
     limit mặc định 50, tối đa 200.
     """
+    authenticate_request(request, {"manager"})
     if limit > 200:
         limit = 200
 
@@ -329,8 +353,7 @@ def get_manager_contact():
     """
     Khách hàng gọi endpoint này khi bấm nút "Đổi giờ / Hủy bàn".
     Trả về tên + SĐT của quản lý để khách liên hệ trực tiếp.
-    Security note: PhoneNumber hiện plain text — khi tích hợp AES thì
-    cần decrypt trước khi trả về (§5.2).
+    PhoneNumber hiện lưu plain text để hỗ trợ tra cứu liên hệ nhanh.
     """
     conn = get_conn()
     cur  = conn.cursor()
@@ -364,13 +387,14 @@ class ManagerCreateReservationRequest(BaseModel):
 
 
 @router.post("/manager/reservations")
-def manager_create_reservation(req: ManagerCreateReservationRequest):
+def manager_create_reservation(req: ManagerCreateReservationRequest, request: Request):
     """
     Manager tạo đơn thay khách sau khi đã tư vấn (§2.5, §3.3).
 
     - Không yêu cầu deposit dù có items (skip_deposit=True)
     - Vẫn dùng đầy đủ logic interval check + staff assignment
     """
+    actor = authenticate_request(request, {"manager"})
     try:
         reservation_time = datetime.fromisoformat(req.reservation_time)
     except ValueError:
@@ -388,6 +412,43 @@ def manager_create_reservation(req: ManagerCreateReservationRequest):
             items=req.items,
             skip_deposit=True,   # Manager tạo → không cần deposit
         )
+        cur = conn.cursor()
+        try:
+            if result.get("success"):
+                insert_audit_log(
+                    cur,
+                    actor_id=actor["uid"],
+                    actor_role=actor["role"],
+                    action="CREATE_RESERVATION",
+                    target_table="Order_",
+                    target_id=result["order_id"],
+                    old_value=None,
+                    new_value={
+                        "customer_id": req.customer_id,
+                        "reservation_time": req.reservation_time,
+                        "table_id": result.get("table_assigned"),
+                        "staff_id": result.get("staff_assigned"),
+                        "created_by": "manager",
+                    },
+                )
+            else:
+                insert_audit_log(
+                    cur,
+                    actor_id=actor["uid"],
+                    actor_role=actor["role"],
+                    action="FAILED_RESERVATION_RECORDED",
+                    target_table="FailedBooking",
+                    target_id=result.get("failed_id") or "unknown",
+                    old_value=None,
+                    new_value={
+                        "customer_id": req.customer_id,
+                        "reservation_time": req.reservation_time,
+                        "reason": result.get("reason"),
+                    },
+                )
+            conn.commit()
+        finally:
+            cur.close()
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -406,13 +467,14 @@ class RescheduleRequest(BaseModel):
 
 
 @router.patch("/manager/orders/{order_id}/reschedule")
-def manager_reschedule(order_id: str, req: RescheduleRequest):
+def manager_reschedule(order_id: str, req: RescheduleRequest, request: Request):
     """
     Manager đổi giờ đặt bàn (§2.5).
 
     Re-check interval overlap cho bàn hiện tại với khung giờ mới.
     Nếu bàn bị conflict → trả lỗi, manager phải xử lý thủ công.
     """
+    actor = authenticate_request(request, {"manager"})
     try:
         new_time = datetime.fromisoformat(req.new_reservation_time)
     except ValueError:
@@ -424,6 +486,24 @@ def manager_reschedule(order_id: str, req: RescheduleRequest):
     conn = get_conn()
     try:
         result = reschedule_order(conn, order_id=order_id, new_time=new_time)
+        cur = conn.cursor()
+        try:
+            insert_audit_log(
+                cur,
+                actor_id=actor["uid"],
+                actor_role=actor["role"],
+                action="RESCHEDULE_ORDER",
+                target_table="Order_",
+                target_id=order_id,
+                old_value={"reservation_time": result.get("old_time")},
+                new_value={
+                    "reservation_time": result.get("new_time"),
+                    "estimated_end": result.get("new_estimated_end"),
+                },
+            )
+            conn.commit()
+        finally:
+            cur.close()
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -438,15 +518,35 @@ def manager_reschedule(order_id: str, req: RescheduleRequest):
 # ═══════════════════════════════════════════════════════════
 
 @router.patch("/manager/orders/{order_id}/cancel")
-def manager_cancel_order(order_id: str):
+def manager_cancel_order(order_id: str, request: Request):
     """
     Manager hủy đơn — kể cả đơn đã cọc (§2.4).
 
     Cọc không hoàn lại. Response sẽ báo rõ số tiền cọc bị mất (nếu có).
     """
+    actor = authenticate_request(request, {"manager"})
     conn = get_conn()
     try:
         result = cancel_order(conn, order_id=order_id, cancelled_by_role="manager")
+        cur = conn.cursor()
+        try:
+            insert_audit_log(
+                cur,
+                actor_id=actor["uid"],
+                actor_role=actor["role"],
+                action="CANCEL_ORDER",
+                target_table="Order_",
+                target_id=order_id,
+                old_value=None,
+                new_value={
+                    "status": result.get("status"),
+                    "deposit_forfeited": result.get("deposit_forfeited"),
+                    "cancelled_by": "manager",
+                },
+            )
+            conn.commit()
+        finally:
+            cur.close()
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -466,7 +566,7 @@ class SQLRequest(BaseModel):
 
 
 @router.post("/manager/sql")
-def run_sql(req: SQLRequest):
+def run_sql(req: SQLRequest, request: Request):
     """
     Chạy bất kỳ câu SQL nào — dành cho manager/dev (§0 DESIGN_DECISIONS).
 
@@ -478,6 +578,7 @@ def run_sql(req: SQLRequest):
     Không có whitelist/blacklist — manager là người build hệ thống,
     có toàn quyền can thiệp DB khi cần (xử lý hủy bàn, sửa lịch, debug...).
     """
+    authenticate_request(request, {"manager"})
     if not req.sql.strip():
         raise HTTPException(status_code=400, detail="SQL không được rỗng")
 
@@ -517,3 +618,24 @@ def run_sql(req: SQLRequest):
     finally:
         cur.close()
         conn.close()
+
+
+# ═══════════════════════════════════════════════════════════
+# POST /api/manager/secure-seed
+# Chạy database/secure_seed.py qua API:
+#   - Hash mật khẩu plain-text mới chèn (Customer / Staff)
+#   - Ký RSA cho Payment chưa có Signature
+# Hữu ích sau khi manager dùng SQL Terminal INSERT dữ liệu thô.
+# ═══════════════════════════════════════════════════════════
+
+class SecureSeedRequest(BaseModel):
+    dry_run: bool = False
+
+
+@router.post("/manager/secure-seed")
+def run_secure_seed(req: SecureSeedRequest, request: Request):
+    authenticate_request(request, {"manager"})
+    try:
+        return secure_seed(dry_run=req.dry_run)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -88,6 +88,13 @@ function openManagerFailedBookingsTab() {
   loadFailedBookings();
 }
 
+function _toLocalInputValue(isoDateString) {
+  if (!isoDateString) return '';
+  const d = new Date(isoDateString);
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d - offset).toISOString().slice(0, 16);
+}
+
 async function loadAllOrders() {
   const listEl = document.getElementById('all-orders-list');
   const status = document.getElementById('filter-status').value;
@@ -105,6 +112,7 @@ async function loadAllOrders() {
       <tbody>
         ${orders.map(o => {
       const canCancel = ['đang xử lý', 'chờ thanh toán', 'hoàn tất'].includes(o.status);
+      const canReschedule = o.status === 'đang xử lý';
       return `
           <tr>
             <td>${o.order_id}</td>
@@ -116,6 +124,10 @@ async function loadAllOrders() {
             <td>${o.total ? o.total.toLocaleString('vi-VN') + 'đ' : '—'}</td>
             <td>${o.deposit_paid > 0 ? o.deposit_paid.toLocaleString('vi-VN') + 'đ' : '—'}</td>
             <td>
+              ${canReschedule
+          ? `<button onclick="managerRescheduleOrder('${o.order_id}', '${o.reservation_time}')" 
+                     style="padding:4px 10px;font-size:12px;margin-right:6px">Đổi giờ</button>`
+          : ''}
               ${canCancel
           ? `<button onclick="managerCancelOrder('${o.order_id}')" class="btn-danger"
                      style="padding:4px 10px;font-size:12px">Hủy đơn</button>`
@@ -139,6 +151,29 @@ async function managerCancelOrder(orderId) {
     if (result.deposit_forfeited) {
       alert(`Đã hủy đơn. Lưu ý: ${result.deposit_note}`);
     }
+    loadAllOrders();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function managerRescheduleOrder(orderId, currentTimeIso) {
+  const defaultValue = _toLocalInputValue(currentTimeIso);
+  const input = prompt(
+    `Nhập giờ mới cho đơn ${orderId} (YYYY-MM-DDTHH:mm)`,
+    defaultValue,
+  );
+  if (!input) return;
+  const normalized = input.length === 16 ? `${input}:00` : input;
+
+  try {
+    const result = await api('PATCH', `/manager/orders/${orderId}/reschedule`, {
+      new_reservation_time: normalized,
+    });
+    alert(
+      `Đã đổi giờ đơn ${orderId}:\n` +
+      `${new Date(result.old_time).toLocaleString('vi-VN')} → ${new Date(result.new_time).toLocaleString('vi-VN')}`,
+    );
     loadAllOrders();
   } catch (e) {
     alert(e.message);
@@ -204,15 +239,125 @@ async function loadFailedBookings() {
     el.innerHTML = `
       <table>
         <thead>
-          <tr><th>Khách</th><th>Giờ muốn đặt</th><th>Trạng thái liên hệ</th><th>Ghi chú</th></tr>
+          <tr><th>Khách</th><th>Giờ muốn đặt</th><th>Trạng thái liên hệ</th><th>Ghi chú</th><th>Thao tác</th></tr>
         </thead>
         <tbody>
           ${items.map(r => `
             <tr>
               <td>${r.customer_name}</td>
               <td>${new Date(r.requested_time).toLocaleString('vi-VN')}</td>
-              <td>${r.contact_status}</td>
+              <td>
+                <select id="fb-status-${r.failed_id}">
+                  <option value="chưa liên hệ" ${r.contact_status === 'chưa liên hệ' ? 'selected' : ''}>chưa liên hệ</option>
+                  <option value="đã liên hệ" ${r.contact_status === 'đã liên hệ' ? 'selected' : ''}>đã liên hệ</option>
+                  <option value="đã giải quyết" ${r.contact_status === 'đã giải quyết' ? 'selected' : ''}>đã giải quyết</option>
+                </select>
+              </td>
               <td>${r.note || '—'}</td>
+              <td>
+                <div style="display:flex;flex-direction:column;gap:6px;min-width:280px">
+                  <button onclick="managerUpdateFailedBooking('${r.failed_id}')">Cập nhật liên hệ</button>
+                  <div style="display:flex;gap:6px">
+                    <input id="fb-time-${r.failed_id}" type="datetime-local" value="${_toLocalInputValue(r.requested_time)}" />
+                    <button onclick="managerCreateReservationFromFailed('${r.failed_id}', '${r.customer_id}')">
+                      Tạo đơn hộ khách
+                    </button>
+                  </div>
+                </div>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    el.innerHTML = `<p class="error">${e.message}</p>`;
+  }
+}
+
+async function managerUpdateFailedBooking(failedId) {
+  const statusEl = document.getElementById(`fb-status-${failedId}`);
+  if (!statusEl) return;
+  const note = prompt('Nhập ghi chú liên hệ (có thể để trống):', '') || null;
+
+  try {
+    await api('PATCH', `/manager/failed-bookings/${failedId}`, {
+      contact_status: statusEl.value,
+      note,
+    });
+    loadFailedBookings();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function managerCreateReservationFromFailed(failedId, customerId) {
+  const timeEl = document.getElementById(`fb-time-${failedId}`);
+  const value = timeEl?.value;
+  if (!value) {
+    alert('Vui lòng chọn giờ đặt mới trước khi tạo đơn.');
+    return;
+  }
+  const reservationTime = value.length === 16 ? `${value}:00` : value;
+
+  try {
+    const result = await api('POST', '/manager/reservations', {
+      customer_id: customerId,
+      reservation_time: reservationTime,
+      items: [],
+    });
+
+    if (!result.success) {
+      alert(`Không tạo được đơn: ${result.reason}`);
+      return;
+    }
+
+    await api('PATCH', `/manager/failed-bookings/${failedId}`, {
+      contact_status: 'đã giải quyết',
+      note: `Đã tạo đơn ${result.order_id}`,
+    });
+
+    alert(
+      `Đã tạo đơn ${result.order_id} cho khách.\n` +
+      `Bàn ${result.table_assigned} · NV ${result.staff_assigned}`,
+    );
+    loadFailedBookings();
+    loadAllOrders();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function loadAuditLog() {
+  const el = document.getElementById('audit-log-content');
+  if (!el) return;
+  el.innerHTML = '<p>Đang tải...</p>';
+
+  const actorId = document.getElementById('audit-actor-filter')?.value?.trim();
+  const targetTable = document.getElementById('audit-target-filter')?.value?.trim();
+  const params = new URLSearchParams({ limit: '100' });
+  if (actorId) params.append('actor_id', actorId);
+  if (targetTable) params.append('target_table', targetTable);
+
+  try {
+    const rows = await api('GET', `/manager/audit-log?${params.toString()}`);
+    if (!rows.length) {
+      el.innerHTML = '<p>Chưa có bản ghi audit phù hợp bộ lọc.</p>';
+      return;
+    }
+    el.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Thời gian</th><th>Actor</th><th>Action</th><th>Target</th><th>Old</th><th>New</th></tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td style="white-space:nowrap">${new Date(r.created_at).toLocaleString('vi-VN')}</td>
+              <td>${r.actor_role}:${r.actor_id}</td>
+              <td>${r.action}</td>
+              <td>${r.target_table}:${r.target_id}</td>
+              <td><code style="font-size:11px">${_esc(r.old_value || 'null')}</code></td>
+              <td><code style="font-size:11px">${_esc(r.new_value || 'null')}</code></td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -321,12 +466,57 @@ async function runManagerSQL() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// MANAGER — SECURE SEED (chạy database/secure_seed.py qua API)
+// ═══════════════════════════════════════════════════════════
+async function runSecureSeed(dryRun) {
+  const outputEl = document.getElementById('sql-output');
+  const statusEl = document.getElementById('sql-status');
+
+  const label = dryRun ? 'Dry-run' : 'Mã hoá lại';
+  if (!dryRun && !confirm(
+    'Hash lại mật khẩu plain-text và ký RSA cho các Payment chưa có chữ ký?\n' +
+    'Hành động này sẽ COMMIT vào database.'
+  )) return;
+
+  outputEl.innerHTML = `<span class="sql-msg-info">Đang chạy ${label}...</span>`;
+  statusEl.textContent = '';
+  const t0 = Date.now();
+
+  try {
+    const r = await api('POST', '/manager/secure-seed', { dry_run: dryRun });
+    const ms = Date.now() - t0;
+    outputEl.innerHTML = `
+      <div class="sql-msg-ok" style="margin-bottom:8px">
+        ✓ ${_esc(r.mode)} hoàn tất&nbsp; (${ms}ms)
+      </div>
+      <table class="sql-result-table">
+        <thead><tr><th>Mục</th><th>Số lượng</th></tr></thead>
+        <tbody>
+          <tr><td>Customer rows updated</td><td>${r.customer_updated}</td></tr>
+          <tr><td>Customer passwords hashed</td><td>${r.customer_pwd}</td></tr>
+          <tr><td>Staff rows updated</td><td>${r.staff_updated}</td></tr>
+          <tr><td>Staff passwords hashed</td><td>${r.staff_pwd}</td></tr>
+          <tr><td>Payment signatures added</td><td>${r.payment_signed}</td></tr>
+        </tbody>
+      </table>
+    `;
+    statusEl.textContent = `${r.mode} · ${ms}ms`;
+  } catch (e) {
+    const ms = Date.now() - t0;
+    outputEl.innerHTML = `
+      <span class="sql-msg-err">✗ ERROR (${ms}ms)</span><br><br>
+      <span style="color:#ce9178;white-space:pre-wrap">${_esc(e.message)}</span>
+    `;
+    statusEl.textContent = `Error · ${ms}ms`;
+  }
+}
+
 // HTML escape helper — tránh XSS từ data trong DB
 function _esc(str) {
-  return str
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
-

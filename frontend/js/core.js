@@ -50,7 +50,11 @@ const state = {
 // API HELPER
 // ═══════════════════════════════════════════════════════════
 async function api(method, path, body = null) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.user && state.user.token) {
+    headers.Authorization = `Bearer ${state.user.token}`;
+  }
+  const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
   let res;
   try {
@@ -239,4 +243,15 @@ function showMsg(el, text, isError) {
   el.classList.remove('hidden');
   if (isError) el.classList.add('error');
   else el.classList.remove('error');
+}
+
+async function verifyPaymentAndAlert(paymentId) {
+  if (!paymentId) return;
+  try {
+    const result = await api('GET', `/payments/${paymentId}/verify`);
+    const headline = result.verified ? '✅ Chữ ký số hợp lệ' : '⚠️ Chữ ký số không hợp lệ';
+    alert(`${headline}\nMã thanh toán: ${paymentId}\n${result.note || ''}`.trim());
+  } catch (e) {
+    alert(`⚠️ Không xác minh được chữ ký hóa đơn ${paymentId}: ${e.message}`);
+  }
 }

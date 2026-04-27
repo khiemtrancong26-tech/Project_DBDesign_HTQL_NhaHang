@@ -5,13 +5,25 @@ Payment service — xử lý 2 loại thanh toán (§2.3, §4.5):
     'cọc'    →  30% TotalAmount, ghi DepositPaid
     'hoàn tất' →  TotalAmount − DepositPaid, cập nhật OrderStatus
 
-RSA Digital Signature (§5.4) được đánh dấu placeholder —
-sẽ được wire vào khi tích hợp security layer.
+RSA Digital Signature (§5.4): tự ký khi tạo payment mới.
 """
 
+import json
 from datetime import date
 
+from security.crypto import sign_payment
+
 DEPOSIT_RATE = 0.30   # §2.3
+
+
+def _attach_signature(cur, payment_id: str, payload: bytes) -> None:
+    signature = sign_payment(payload)
+    if not signature:
+        return
+    cur.execute(
+        "UPDATE Payment SET Signature = %s WHERE PaymentID = %s",
+        (signature, payment_id),
+    )
 
 
 def create_payment(
@@ -121,6 +133,8 @@ def _process_deposit(
             f"(30% × {total_amount:,.0f}đ − đã cọc {deposit_paid:,.0f}đ)"
         )
 
+    payment_date = date.today()
+
     # INSERT Payment (cọc)
     cur.execute(
         """
@@ -128,22 +142,24 @@ def _process_deposit(
             (PaymentID, Amount, PaymentDate, PaymentMethod, PaymentStatus, PaymentType, OrderID)
         VALUES (%s, %s, %s, %s, 'thành công', 'cọc', %s)
         """,
-        (payment_id, amount, date.today(), method, order_id),
+        (payment_id, amount, payment_date, method, order_id),
     )
+
+    payload = serialize_payment(
+        payment_id=payment_id,
+        order_id=order_id,
+        amount=amount,
+        method=method,
+        payment_type="cọc",
+        payment_date=payment_date,
+    )
+    _attach_signature(cur, payment_id, payload)
 
     # Cập nhật DepositPaid trên Order_
     cur.execute(
         "UPDATE Order_ SET DepositPaid = DepositPaid + %s WHERE OrderID = %s",
         (amount, order_id),
     )
-
-    # ── §5.4 RSA Digital Signature — placeholder ──────────────────────────
-    # Khi tích hợp security layer:
-    #   payload   = _serialize_payment(payment_id, order_id, amount, method, 'cọc')
-    #   signature = sign_data(payload)           # security/crypto.py
-    #   cur.execute("UPDATE Payment SET Signature = %s WHERE PaymentID = %s",
-    #               (signature, payment_id))
-    # ─────────────────────────────────────────────────────────────────────
 
     conn.commit()
 
@@ -191,6 +207,8 @@ def _process_final(
             f"(tổng {total_amount:,.0f}đ − cọc đã trả {deposit_paid:,.0f}đ)"
         )
 
+    payment_date = date.today()
+
     # INSERT Payment (hoàn tất)
     cur.execute(
         """
@@ -198,22 +216,24 @@ def _process_final(
             (PaymentID, Amount, PaymentDate, PaymentMethod, PaymentStatus, PaymentType, OrderID)
         VALUES (%s, %s, %s, %s, 'thành công', 'hoàn tất', %s)
         """,
-        (payment_id, amount, date.today(), method, order_id),
+        (payment_id, amount, payment_date, method, order_id),
     )
+
+    payload = serialize_payment(
+        payment_id=payment_id,
+        order_id=order_id,
+        amount=amount,
+        method=method,
+        payment_type="hoàn tất",
+        payment_date=payment_date,
+    )
+    _attach_signature(cur, payment_id, payload)
 
     # Cập nhật trạng thái đơn
     cur.execute(
         "UPDATE Order_ SET OrderStatus = 'đã thanh toán' WHERE OrderID = %s",
         (order_id,),
     )
-
-    # ── §5.4 RSA Digital Signature — placeholder ──────────────────────────
-    # Khi tích hợp security layer:
-    #   payload   = _serialize_payment(payment_id, order_id, amount, method, 'hoàn tất')
-    #   signature = sign_data(payload)           # security/crypto.py
-    #   cur.execute("UPDATE Payment SET Signature = %s WHERE PaymentID = %s",
-    #               (signature, payment_id))
-    # ─────────────────────────────────────────────────────────────────────
 
     conn.commit()
 
@@ -232,30 +252,27 @@ def _process_final(
 # Serialize payload để RSA sign — dùng khi tích hợp security layer
 # ══════════════════════════════════════════════════════════════════════════
 
-def _serialize_payment(
+def serialize_payment(
     payment_id:   str,
     order_id:     str,
     amount:       float,
     method:       str,
     payment_type: str,
+    payment_date: date | None = None,
 ) -> bytes:
     """
     Chuẩn hóa hoá đơn thành bytes để ký RSA (§5.4).
 
     sort_keys=True đảm bảo cùng input → cùng bytes → signature verify được.
-    Hàm này được dùng ở 2 nơi:
-        payment_service (khi ký)
-        customer.py GET /payments/{id}/verify (khi verify lại)
-    → Phải giữ format nhất quán tuyệt đối.
+    Dùng ở 2 nơi (payment_service khi ký, customer.py khi verify lại)
+    → format phải nhất quán tuyệt đối.
     """
-    import json
     payload = {
         "payment_id":   payment_id,
         "order_id":     order_id,
         "amount":       amount,
-        "payment_date": str(date.today()),
+        "payment_date": str(payment_date or date.today()),
         "method":       method,
         "payment_type": payment_type,
     }
     return json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
-

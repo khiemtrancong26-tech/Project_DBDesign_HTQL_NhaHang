@@ -163,12 +163,13 @@ async function handlePayDeposit() {
   if (!res) return;
 
   try {
-    await api('POST', '/payments', {
+    const payment = await api('POST', '/payments', {
       order_id: res.order_id,
       amount: res.deposit_amount,
       method,
       payment_type: 'cọc',
     });
+    await verifyPaymentAndAlert(payment.payment_id);
 
     showMsg(
       msgEl,
