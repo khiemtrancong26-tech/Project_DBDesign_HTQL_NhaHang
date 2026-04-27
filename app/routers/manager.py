@@ -1,4 +1,4 @@
-# routers/manager.py
+﻿# routers/manager.py
 """
 Manager router.
 
@@ -15,8 +15,8 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from db import get_conn
-from services.order_service import (
+from app.db import get_conn
+from app.services.order_service import (
     create_reservation,
     reschedule_order,
     cancel_order,

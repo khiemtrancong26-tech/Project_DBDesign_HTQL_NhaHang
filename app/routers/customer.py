@@ -1,4 +1,4 @@
-# routers/customer.py
+﻿# routers/customer.py
 """
 Customer router.
 
@@ -15,13 +15,13 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from db import get_conn
-from services.order_service   import (
+from app.db import get_conn
+from app.services.order_service   import (
     create_reservation, add_items_to_order,
     request_payment as svc_request_payment,
     cancel_payment_request as svc_cancel_payment_request,
 )
-from services.payment_service import create_payment
+from app.services.payment_service import create_payment
 
 router = APIRouter()
 
@@ -373,7 +373,7 @@ def verify_payment(payment_id: str):
             }
 
         # Khi wire security layer:
-        # from services.payment_service import _serialize_payment
+        # from app.services.payment_service import _serialize_payment
         # from security.crypto import verify_signature
         # payload  = _serialize_payment(payment_id_, order_id, float(amount), method, pay_type)
         # verified = verify_signature(payload, signature)

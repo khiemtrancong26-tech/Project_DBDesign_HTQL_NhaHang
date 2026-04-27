@@ -1,4 +1,4 @@
-# services/order_service.py
+﻿# services/order_service.py
 """
 Order service — lifecycle của đơn hàng.
 
@@ -13,7 +13,7 @@ Gọi availability_service để tách biệt thuật toán khỏi order logic.
 
 from datetime import datetime, timedelta
 
-from services.availability_service import (
+from app.services.availability_service import (
     find_available_table,
     find_available_staff,
     insert_failed_booking,
@@ -715,3 +715,4 @@ def _insert_order_details(cur, order_id: str, items: list[dict]) -> float:
             added_subtotal += unit_price * quantity
 
     return added_subtotal
+

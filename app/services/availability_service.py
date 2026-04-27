@@ -1,4 +1,4 @@
-# services/availability_service.py
+﻿# services/availability_service.py
 """
 Tầng availability — 3 trách nhiệm độc lập:
 
@@ -226,3 +226,4 @@ def insert_failed_booking(
         return failed_id
     finally:
         cur.close()
+

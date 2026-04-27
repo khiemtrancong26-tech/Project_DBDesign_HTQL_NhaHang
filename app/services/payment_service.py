@@ -1,4 +1,4 @@
-# services/payment_service.py
+﻿# services/payment_service.py
 """
 Payment service — xử lý 2 loại thanh toán (§2.3, §4.5):
 
@@ -258,3 +258,4 @@ def _serialize_payment(
         "payment_type": payment_type,
     }
     return json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+

@@ -1,4 +1,4 @@
-# routers/auth.py
+﻿# routers/auth.py
 """
 Auth router — thuần tầng routing.
 Chưa tích hợp security layer:
@@ -7,7 +7,7 @@ Chưa tích hợp security layer:
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from db import get_conn
+from app.db import get_conn
 
 router = APIRouter()
 

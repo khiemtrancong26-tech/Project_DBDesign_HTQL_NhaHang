@@ -1,4 +1,4 @@
-# routers/staff.py
+﻿# routers/staff.py
 """
 Staff router:
     GET   /api/staff/{staff_id}/orders           — Xem đơn được phân công
@@ -11,8 +11,8 @@ Staff router:
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from db import get_conn
-from services.order_service import (
+from app.db import get_conn
+from app.services.order_service import (
     add_items_to_order, VALID_TRANSITIONS_STAFF,
     confirm_payment_request as svc_confirm_payment,
 )
@@ -341,3 +341,4 @@ def confirm_payment(order_id: str, req: ConfirmPaymentRequest):
     finally:
         cur.close()
         conn.close()
+
