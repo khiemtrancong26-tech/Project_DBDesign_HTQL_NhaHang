@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from app.db import get_conn
 from security.auth_guard import create_access_token
-from security.crypto import hash_password, verify_password
+from security.crypto import encrypt_text_aes, hash_password, verify_password
 
 router = APIRouter()
 
@@ -106,13 +106,14 @@ def register(req: RegisterRequest):
 
         customer_id = _generate_customer_id(cur)
         secured_password = hash_password(req.password, req.username)
+        encrypted_phone = encrypt_text_aes(req.phone)
 
         cur.execute(
             """
             INSERT INTO Customer (CustomerID, FullName, PhoneNumber, username, password)
             VALUES (%s, %s, %s, %s, %s)
             """,
-            (customer_id, req.fullname, req.phone, req.username, secured_password),
+            (customer_id, req.fullname, encrypted_phone, req.username, secured_password),
         )
         conn.commit()
         return {"customer_id": customer_id, "name": req.fullname}

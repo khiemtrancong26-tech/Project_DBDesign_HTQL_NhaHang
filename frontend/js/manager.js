@@ -400,6 +400,41 @@ function clearSqlTerminal() {
   document.getElementById('sql-status').textContent = '';
 }
 
+async function decryptAesFromSqlInput() {
+  const inputEl = document.getElementById('sql-input');
+  const outputEl = document.getElementById('sql-output');
+  const statusEl = document.getElementById('sql-status');
+
+  const selected = inputEl.value.slice(inputEl.selectionStart, inputEl.selectionEnd).trim();
+  const candidate = selected || inputEl.value.trim();
+  if (!candidate) {
+    outputEl.innerHTML = '<span class="sql-msg-err">✗ Vui lòng dán ciphertext vào ô SQL input trước.</span>';
+    statusEl.textContent = 'Decrypt failed';
+    return;
+  }
+
+  outputEl.innerHTML = '<span class="sql-msg-info">Đang giải mã AES...</span>';
+  statusEl.textContent = '';
+  const t0 = Date.now();
+
+  try {
+    const res = await api('POST', '/manager/crypto/decrypt', { value: candidate });
+    const ms = Date.now() - t0;
+    outputEl.innerHTML = `
+      <div class="sql-msg-ok" style="margin-bottom:8px">✓ Decrypt OK (${ms}ms)</div>
+      <pre style="white-space:pre-wrap;word-break:break-word;margin:0">${_esc(res.plaintext)}</pre>
+    `;
+    statusEl.textContent = `Decrypt OK · ${ms}ms`;
+  } catch (e) {
+    const ms = Date.now() - t0;
+    outputEl.innerHTML = `
+      <span class="sql-msg-err">✗ DECRYPT ERROR (${ms}ms)</span><br><br>
+      <span style="color:#ce9178;white-space:pre-wrap">${_esc(e.message)}</span>
+    `;
+    statusEl.textContent = `Decrypt error · ${ms}ms`;
+  }
+}
+
 async function runManagerSQL() {
   const sql = document.getElementById('sql-input').value.trim();
   const outputEl = document.getElementById('sql-output');

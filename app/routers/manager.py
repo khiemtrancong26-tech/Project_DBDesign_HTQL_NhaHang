@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from app.db import get_conn
 from app.services.audit_service import insert_audit_log
 from security.auth_guard import authenticate_request
+from security.crypto import decrypt_text_aes
 from app.services.order_service import (
     create_reservation,
     reschedule_order,
@@ -563,6 +564,30 @@ def manager_cancel_order(order_id: str, request: Request):
 
 class SQLRequest(BaseModel):
     sql: str
+
+
+class AESDecryptRequest(BaseModel):
+    value: str
+
+
+@router.post("/manager/crypto/decrypt")
+def decrypt_with_aes(req: AESDecryptRequest, request: Request):
+    """
+    AES decrypt utility for manager SQL terminal.
+    Input format:
+      - aes1:<iv_hex>:<cipher_hex>
+      - <iv_hex>:<cipher_hex>
+    """
+    authenticate_request(request, {"manager"})
+    try:
+        return {
+            "ok": True,
+            "plaintext": decrypt_text_aes(req.value),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Không giải mã được. Kiểm tra key/iv/ciphertext.")
 
 
 @router.post("/manager/sql")

@@ -394,6 +394,10 @@
         <div class="sql-toolbar">
           <button onclick="runManagerSQL()" class="sql-run-btn">▶&nbsp; Run</button>
           <button onclick="clearSqlTerminal()" class="sql-clear-btn">✕ Clear</button>
+          <button onclick="decryptAesFromSqlInput()" class="sql-clear-btn"
+            title="Dán chuỗi dạng aes1:iv_hex:cipher_hex hoặc iv_hex:cipher_hex rồi bấm để giải mã">
+            🔓 Giải mã AES
+          </button>
           <button onclick="runSecureSeed(false)" class="sql-clear-btn" title="Hash password + ký RSA cho dữ liệu mới chèn">
             🔒 Mã hoá lại dữ liệu
           </button>
