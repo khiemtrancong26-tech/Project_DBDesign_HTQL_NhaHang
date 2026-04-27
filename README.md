@@ -88,26 +88,28 @@ http://localhost:8000
 
 ```text
 app/
-|- main.py
-|- db.py
-|- routers/
-|  |- auth.py
-|  |- customer.py
-|  |- staff.py
-|  \- manager.py
-\- services/
-   |- availability_service.py
-   |- order_service.py
-   \- payment_service.py
+   ├──main.py
+   ├──db.py
+   ├──routers/
+   |   ├──auth.py
+   |   ├──customer.py
+   |   ├──staff.py
+   |   ├──manager.py
+   ├──services/
+       ├── availability_service.py
+       ├──order_service.py
+       ├──payment_service.py
+
 
 database/
-|- 01_schema.sql
-\- 02_seed_demo_data.sql
+   ├──01_schema.sql
+   ├──02_seed_demo_data.sql
+
 
 frontend/
-|- index.html
-|- js/
-\- styles/
+   ├──index.html
+   ├──js/
+   ├──styles/
 ```
 
 ---
