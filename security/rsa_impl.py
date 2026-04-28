@@ -11,6 +11,9 @@ Chỉ dùng built-in Python:
     Không import thêm gì ngoài sha256 tự viết.
 """
 
+import sys as _sys, os as _os
+if __name__ == '__main__' and __package__ is None:
+    _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 from security.sha256 import sha256
 
 _RSA_SEED = b"KhiemTranCong"

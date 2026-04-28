@@ -435,6 +435,49 @@ async function decryptAesFromSqlInput() {
   }
 }
 
+async function verifyPaymentSigFromInput() {
+  const outputEl = document.getElementById('sql-output');
+  const statusEl = document.getElementById('sql-status');
+
+  outputEl.innerHTML = '<span class="sql-msg-info">Đang quét chữ ký RSA toàn bộ Payment...</span>';
+  statusEl.textContent = '';
+  const t0 = Date.now();
+
+  try {
+    const res = await api('GET', '/manager/crypto/verify-payment');
+    const ms = Date.now() - t0;
+    const { results } = res;
+    const invalid = results.filter(r => !r.valid);
+
+    const rowsHtml = results.map(r => `
+      <tr style="${r.valid ? '' : 'background:#3a1a1a;color:#f48771'}">
+        <td>${_esc(r.payment_id)}</td>
+        <td>${_esc(String(r.amount))}</td>
+        <td>${r.valid ? '<span style="color:#4ec9b0">✓ HỢP LỆ</span>' : '<span style="color:#f48771">✗ KHÔNG HỢP LỆ</span>'}</td>
+        <td>${_esc(r.reason || '')}</td>
+      </tr>`).join('');
+
+    outputEl.innerHTML = `
+      <div class="${invalid.length ? 'sql-msg-err' : 'sql-msg-ok'}" style="margin-bottom:8px">
+        ${invalid.length ? `✗ Phát hiện ${invalid.length} chữ ký không hợp lệ` : '✓ Tất cả chữ ký hợp lệ'}
+        &nbsp;(${results.length} payment · ${ms}ms)
+      </div>
+      <div style="overflow-x:auto">
+        <table class="sql-result-table">
+          <thead><tr><th>PaymentID</th><th>Amount</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+    statusEl.textContent = `${invalid.length ? invalid.length + ' INVALID' : 'All valid'} · ${ms}ms`;
+  } catch (e) {
+    const ms = Date.now() - t0;
+    outputEl.innerHTML = `
+      <span class="sql-msg-err">✗ ERROR (${ms}ms)</span><br><br>
+      <span style="color:#ce9178;white-space:pre-wrap">${_esc(e.message)}</span>`;
+    statusEl.textContent = `Error · ${ms}ms`;
+  }
+}
+
 async function runManagerSQL() {
   const sql = document.getElementById('sql-input').value.trim();
   const outputEl = document.getElementById('sql-output');

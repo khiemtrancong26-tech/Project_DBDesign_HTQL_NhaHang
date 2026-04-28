@@ -18,7 +18,8 @@ from pydantic import BaseModel
 from app.db import get_conn
 from app.services.audit_service import insert_audit_log
 from security.auth_guard import authenticate_request
-from security.crypto import decrypt_text_aes
+from security.crypto import decrypt_text_aes, verify_payment_sig
+from app.services.payment_service import serialize_payment
 from app.services.order_service import (
     create_reservation,
     reschedule_order,
@@ -558,8 +559,11 @@ def manager_cancel_order(order_id: str, request: Request):
 
 
 # ═══════════════════════════════════════════════════════════
-# POST /api/manager/sql   [NEW]
 # SQL Terminal — manager toàn quyền truy vấn và chỉnh sửa DB
+# Crypto utilities đi kèm:
+#   POST /api/manager/crypto/decrypt         — giải mã AES
+#   GET  /api/manager/crypto/verify-payment  — quét chữ ký RSA toàn bộ Payment
+#   POST /api/manager/sql                    — chạy SQL tuỳ ý
 # ═══════════════════════════════════════════════════════════
 
 class SQLRequest(BaseModel):
@@ -572,22 +576,43 @@ class AESDecryptRequest(BaseModel):
 
 @router.post("/manager/crypto/decrypt")
 def decrypt_with_aes(req: AESDecryptRequest, request: Request):
-    """
-    AES decrypt utility for manager SQL terminal.
-    Input format:
-      - aes1:<iv_hex>:<cipher_hex>
-      - <iv_hex>:<cipher_hex>
-    """
+    """AES decrypt — dán chuỗi aes1:<iv>:<ct> hoặc <iv>:<ct> để giải mã."""
     authenticate_request(request, {"manager"})
     try:
-        return {
-            "ok": True,
-            "plaintext": decrypt_text_aes(req.value),
-        }
+        return {"ok": True, "plaintext": decrypt_text_aes(req.value)}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(status_code=400, detail="Không giải mã được. Kiểm tra key/iv/ciphertext.")
+
+
+@router.get("/manager/crypto/verify-payment")
+def verify_all_payment_signatures(request: Request):
+    authenticate_request(request, {"manager"})
+    conn = get_conn()
+    cur  = conn.cursor()
+    try:
+        cur.execute(
+            """
+            SELECT PaymentID, OrderID, Amount, PaymentMethod, PaymentType, PaymentDate, Signature
+            FROM Payment ORDER BY PaymentDate DESC, PaymentID DESC
+            """
+        )
+        results = []
+        for row in cur.fetchall():
+            pid, order_id, amount, method, ptype, pdate, signature = row
+            if not signature:
+                results.append({"payment_id": pid, "amount": float(amount), "valid": False, "reason": "Chưa có chữ ký"})
+                continue
+            payload = serialize_payment(
+                payment_id=pid, order_id=order_id, amount=float(amount),
+                method=method, payment_type=ptype, payment_date=pdate,
+            )
+            results.append({"payment_id": pid, "amount": float(amount), "valid": verify_payment_sig(payload, signature)})
+        return {"results": results}
+    finally:
+        cur.close()
+        conn.close()
 
 
 @router.post("/manager/sql")
